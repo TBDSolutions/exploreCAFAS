@@ -4,7 +4,7 @@
 
 # Insert path to XML file here in quotes.  Must use forward slashes (i.e. / not \).
 # For example:
-  file <- "C:/Path/to/CAFAS/CAFAS_ExportData_23559_db96c258-58f9-4dd4-bee7-7323ad1649dd.xml"
+  file <- "C:/Path/to/CAFAS/CAFAS_ExportData_etc.xml"
 
 ### The remainder of this code can be run as is
 

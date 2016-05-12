@@ -24,4 +24,4 @@ library(car)
       left_join(cafas_key, by = "id") %>%
       select(-id, -assess_age, -gender)
     
-    #write.csv(scrub_cafas,"data/scrub_cafas.csv", row.names = F)
+write.csv(scrub_cafas,"data/scrub_cafas.csv", row.names = F)

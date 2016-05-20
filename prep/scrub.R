@@ -17,11 +17,22 @@ library(car)
     cafas_key$fake_id <- as.character(cafas_key$fake_id)
     rm(id)
 
+  # Make an episode key
+    unique_episode_id <- unique(sub_cafas$unique_episode_id)
+    cafas_episode_key <- data.frame(unique_episode_id)
+    cafas_episode_key$fake_episode_id <- sample(x = 100000001:999999999, 
+                                        size = length(cafas_episode_key$unique_episode_id), 
+                                        replace = FALSE)
+    cafas_episode_key$unique_episode_id <- as.character(cafas_episode_key$unique_episode_id)
+    cafas_episode_key$fake_episode_id <- as.character(cafas_episode_key$fake_episode_id)
+    rm(unique_episode_id)  
+    
   # Make PHI-free dataset
     scrub_cafas <-
       sub_cafas %>%
       mutate(id = as.character(id)) %>%
       left_join(cafas_key, by = "id") %>%
-      select(-id, -assess_age, -gender)
+      left_join(cafas_episode_key, by = "unique_episode_id") %>%
+      select(-id, -unique_episode_id, -assess_age, -gender)
     
 write.csv(scrub_cafas,"data/scrub_cafas.csv", row.names = F)

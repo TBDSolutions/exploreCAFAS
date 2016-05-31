@@ -7,7 +7,9 @@ shinyServer(
     
     cafasInput <- reactive({  
       
-      tx_status <- if (input$radio_status == "Either") {c("Active","Inactive")
+      tx_status <- 
+      if (input$radio_status == "Either") {c("Active","Inactive","Inferred Inactive")
+      } else if (input$radio_status == "Inactive") { c("Inactive","Inferred Inactive")
       } else input$radio_status
       
       if (input$agency == "All") {
@@ -24,105 +26,28 @@ shinyServer(
       } else print(paste0("Error.  Unrecognized input."))
     })
     
-    outcome_df <- reactive({
-      
-      cafasInput() %>%
-        group_by(fake_episode_id,fake_id,cmh,episode_num) %>%
-        mutate(init_CAFAS = assess_ord == min(assess_ord), # for included assessments
-               last_CAFAS = assess_ord == max(assess_ord)) %>%
-        filter(init_CAFAS == T | last_CAFAS == T) %>%
-        mutate(cafas_total_diff = cafas_total - lag(cafas_total), #doesn't work if start of episode not in dataset
-               meaning_improve = total_diff >= 20, #total_diff is calc by episode
-               # Tag youth with improved Risk Factors between init and most recent
-               child_mgmt_improve = child_mgmt == F & lag(child_mgmt) == T,
-               behavioral_improve = behavioral == F & lag(behavioral) == T,
-               psychosis_risk_improve = psychosis_risk == F & lag(psychosis_risk) == T,
-               severe_sud_improve = severe_sud == F & lag(severe_sud) == T,
-               suicide_risk_improve = suicide_risk == F & lag(suicide_risk) == T,
-               suicide_ideation_improve = suicide_ideation == F & lag(suicide_ideation) == T,
-               aggressive_improve = aggressive == F & lag(aggressive) == T,
-               sexual_improve = sexual == F & lag(sexual) == T,
-               fire_setting_improve = fire_setting == F & lag(fire_setting) == T,
-               runaway_improve = runaway == F & lag(runaway) == T,
-               risk_improve_num = child_mgmt_improve + behavioral_improve 
-                                   + psychosis_risk_improve + severe_sud_improve 
-                                   + suicide_risk_improve + suicide_ideation_improve
-                                   + aggressive_improve + sexual_improve
-                                   + fire_setting_improve + runaway_improve,
-               change_risk_den = lag(child_mgmt) == T 
-                                  | lag(behavioral) == T 
-                                  | lag(psychosis_risk) == T 
-                                  | lag(severe_sud) == T 
-                                  | lag(suicide_risk) == T
-                                  | lag(suicide_ideation) == T
-                                  | lag(aggressive) == T
-                                  | lag(sexual) == T
-                                  | lag(fire_setting) == T
-                                  | lag(runaway) == T, 
-               change_risk_num = risk_improve_num >= 1,
-               # Calc diff in subscales from init to most recent
-               subscale_school_diff = subscale_school - lag(subscale_school),
-               subscale_home_diff = subscale_home - lag(subscale_home),
-               subscale_community_diff = subscale_community - lag(subscale_community),
-               subscale_behavior_diff = subscale_behavior - lag(subscale_behavior),
-               subscale_mood_diff = subscale_mood - lag(subscale_mood),
-               subscale_selfharm_diff = subscale_selfharm - lag(subscale_selfharm),
-               subscale_substance_diff = subscale_substance - lag(subscale_substance),
-               subscale_thinking_diff = subscale_thinking - lag(subscale_thinking),
-               # Tag youth with changes in any subscale
-               change_subscale_log = subscale_school_diff < 0 
-                                     | subscale_home_diff < 0
-                                     | subscale_community_diff < 0
-                                     | subscale_behavior_diff < 0
-                                     | subscale_mood_diff < 0
-                                     | subscale_selfharm_diff < 0
-                                     | subscale_substance_diff < 0
-                                     | subscale_thinking_diff < 0,
-               # Define den and num for Severe Impairment measure
-               severe_impair_den = lag(subscale_school) == 30
-                                    | lag(subscale_home) == 30 
-                                    | lag(subscale_community) == 30 
-                                    | lag(subscale_behavior) == 30
-                                    | lag(subscale_mood) == 30
-                                    | lag(subscale_selfharm) == 30
-                                    | lag(subscale_substance) == 30
-                                    | lag(subscale_thinking) == 30,
-               severe_impair_num = (lag(subscale_school) == 30 & subscale_school_diff < 0)
-                                   | (lag(subscale_home) == 30 & subscale_home_diff < 0)
-                                   | (lag(subscale_community) == 30 & subscale_community_diff < 0)
-                                   | (lag(subscale_behavior) == 30 & subscale_behavior_diff < 0)
-                                   | (lag(subscale_mood) == 30 & subscale_mood_diff < 0)
-                                   | (lag(subscale_selfharm) == 30 & subscale_selfharm_diff < 0)
-                                   | (lag(subscale_substance) == 30 & subscale_substance_diff < 0)
-                                   | (lag(subscale_thinking) == 30 & subscale_thinking_diff < 0),
-               # Define den and num for Pervasive Behavioral Impairment measure
-               change_pbi_den_log = lag(subscale_school) %in% c(20:30) 
-                                     & lag(subscale_home) %in% c(20:30)
-                                     & lag(subscale_behavior) %in% c(20:30),
-               change_pbi_num_log = lag(subscale_school) %in% c(20:30) 
-                                     & lag(subscale_home) %in% c(20:30)
-                                     & lag(subscale_behavior) %in% c(20:30)
-                                     & subscale_school %in% c(0:19) 
-                                     & subscale_home %in% c(0:19)
-                                     & subscale_behavior %in% c(0:19)
-        ) %>%
-        ungroup() %>%
-        select(fake_episode_id,fake_id,cmh,client_status,episode_num,assess_ord,
-               episode_elapsed,episode_length,assess_type,assess_date,
-               subscale_school_diff:change_subscale_log,
-               severe_impair_den,severe_impair_num,
-               change_pbi_den_log, change_pbi_num_log,
-               cafas_total,total_diff,cafas_total_diff,meaning_improve,improvement,
-               child_mgmt_improve:change_risk_num,change_impair,change_behavior,
-               improve_one_more) %>%
-        filter(is.na(cafas_total_diff) == F) # rm init assessments & episodes w/ 1 rating
-      
-    })
-    
     outcome_agg <- reactive ({
       
+      tx_status <- 
+        if (input$radio_status == "Either") {c("Active","Inactive","Inferred Inactive")
+        } else if (input$radio_status == "Inactive") { c("Inactive","Inferred Inactive")
+        } else input$radio_status
+      
+      if (input$agency == "All") {
+        outcome_df %<>% 
+          filter(as.Date(assess_date) >= input$dateRange[1]
+                 & as.Date(assess_date) <= input$dateRange[2]
+                 & client_status %in% tx_status)
+      } else if ( input$agency %in% levels(unique(scrub_cafas$cmh)) ) {
+        outcome_df %<>% 
+          filter(as.Date(assess_date) >= input$dateRange[1]
+                 & as.Date(assess_date) <= input$dateRange[2]
+                 & client_status %in% tx_status
+                 & cmh %in% input$agency)
+      } else print(paste0("Error.  Unrecognized input."))
+      
       # Aggregate data
-      outcome_df() %>%
+      outcome_df %>%
         group_by(cmh) %>%
         summarize(
           meaningimprove_d = n_distinct(fake_episode_id),
@@ -210,9 +135,97 @@ shinyServer(
                 color = cmh, colors = "Set3",
                 text = paste("Numerator: ", numerator,
                              "<br>Denominator: ", denominator)) %>%
-        layout(xaxis = list(title = "CMHSP", showticklabels = F),
+        layout(xaxis = list(title = "CMHSP", showticklabels = F,
+                            categoryarray = cmh, categoryorder = "array"),
                yaxis = list(title = "%", range = c(0, 100)),
                legend = list(font = list(size = 10)))
+      
+    })
+    
+    output$eligible_bar <- renderPlotly({
+      
+      df <-
+      cafasInput() %>%
+        filter(is.na(n_crit) == F
+               & most_recent == T) %>%
+        mutate(interval = recode(assess_type, 
+                                 recodes = "'Exit CAFAS' = 'Discharge';
+                                 'Initial CAFAS' = 'Intake';
+                                 'Revised Initial' = 'Intake';
+                                 else = 'In treatment'"),
+               meet_crit = ifelse(n_crit == 0, 
+                                  yes = "Ineligible", no = "Eligible")) %>%
+        group_by(cmh, interval, meet_crit) %>%
+        summarize(n = n()) %>%
+        spread(meet_crit, n) %>%
+        mutate(Total = Eligible + Ineligible,
+               Pct_Elig = round(Eligible/Total*100, digits = 1),
+               Pct_Inel = round(Ineligible/Total*100, digits = 1))
+      
+      
+      if (input$radio_elig_pct == "Number") {
+        
+        df %>%
+          arrange(desc(Ineligible)) %>%
+          plot_ly(x = cmh, y = Ineligible, type = "bar",
+                  color = interval, colors = "Set3",
+                  text = paste("% ineligible at interval: ", Pct_Inel,
+                               "<br>Total assessed: ", Total)) %>%
+          layout(title = "Youth not meeting eligibility criteria, by interval",
+                 xaxis = list(title = "CMHSP", showticklabels = F,
+                              categoryarray = cmh, categoryorder = "array"),
+                 yaxis = list(title = "# of youth assessed"), #, range = c(0, 100)
+                 legend = list(font = list(size = 10)),
+                 barmode = "stack")
+        
+      } else if (input$radio_elig_pct == "Percent")  {
+        
+        df %>%
+          arrange(desc(Pct_Inel)) %>%
+          plot_ly(x = cmh, y = Pct_Inel, type = "bar",
+                  color = interval, colors = "Set3",
+                  text = paste("# ineligible at interval: ", Ineligible,
+                               "<br>Total assessed: ", Total)) %>%
+          layout(title = "Youth not meeting eligibility criteria, by interval",
+                 xaxis = list(title = "CMHSP", showticklabels = F,
+                              categoryarray = cmh, categoryorder = "array"),
+                 yaxis = list(title = "% of youth assessed", range = c(0, 100)), 
+                 legend = list(font = list(size = 10)))
+        
+      } else paste0("Uh-oh.  Input is neither number or percent.")
+      
+      
+      
+    })
+    
+    output$inel_days_hist <- renderPlotly({
+      
+      cafasInput() %>% 
+        filter(is.na(n_crit) == F) %>%
+        select(fake_episode_id,fake_id,cmh,episode_num,
+               assess_ord,assess_type,episode_elapsed,n_crit) %>%
+        group_by(fake_episode_id,fake_id,cmh,episode_num) %>%
+        mutate(meet_crit = n_crit > 0,
+               post_inel = lag(meet_crit) == F) %>%
+        filter(meet_crit == F | post_inel == T) %>%   # either inel or post inel
+        mutate(elapsed = episode_elapsed - lag(episode_elapsed),
+               elapsed = ifelse(is.na(elapsed) == T, 
+                                yes = 0, no = elapsed),
+               since_inel = cumsum(elapsed),
+               last_inel = assess_ord == max(assess_ord)) %>%
+        filter(last_inel == T) %>% # just the last per episode
+        plot_ly(x = since_inel,
+                opacity = 0.6, 
+                type = "histogram",
+                #color = cmh, colors = "Set3",
+                hoverinfo = "all", 
+                name = "days",
+                showlegend = F,
+                mode = "markers") %>%
+        layout(title = "Days in service following ineligibility (Distribution)",
+               xaxis = list(title = "Days in service following ineligibility", 
+                            tickmode = "array"),
+               yaxis = list(title = "# of youth", showgrid = F)) # barmode = "stack"
       
     })
     
@@ -270,7 +283,40 @@ shinyServer(
         dyOptions(connectSeparatedPoints = TRUE,
                   colors = RColorBrewer::brewer.pal(6, "Set2")) %>%
         dyLegend(show = "never") %>% 
-        dyRangeSelector(dateWindow = c("0", "365"),height = 20, strokeColor = "")
+        dyLimit(limit = 120, label = "High Impairment", 
+                labelLoc = "right") %>%
+        dyLimit(limit = 80, label = "Medium Impairment",
+                labelLoc = "right") %>%
+        dyRangeSelector(dateWindow = c("0", "1460"),height = 20, strokeColor = "")
+      
+    })
+    
+    output$heatmap <- renderD3heatmap({
+      
+      withProgress(message = 'Creating heatmap...',
+                   detail = 'Clustering can take awhile...',
+                   value = 0.1, 
+                   {cafasInput() %>%
+                       filter(assess_ord == 1) %>%
+                       select(cafas_total, subscale_school:subscale_thinking) %>%
+                       rename(TOTAL = cafas_total, 
+                              school = subscale_school, 
+                              home = subscale_home, 
+                              community = subscale_community,
+                              behavior = subscale_behavior, 
+                              mood = subscale_mood, 
+                              selfharm = subscale_selfharm, 
+                              substance = subscale_substance,
+                              thinking = subscale_thinking) %>%
+                       filter(complete.cases(.)) %>%
+                       scale() %>%
+                       d3heatmap(colors = "Blues",
+                                 dendrogram = "row",
+                                 k_row = input$need_rows, 
+                                 theme = "",
+                                 yaxis_font_size =  "0pt",
+                                 show_grid = F)
+                   })
       
     })
     

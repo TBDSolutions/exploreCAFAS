@@ -31,8 +31,8 @@ library(car)
     scrub_fas <-
       sub_fas %>%
       mutate(id = as.character(id)) %>%
-      left_join(cafas_key, by = "id") %>%
-      left_join(cafas_episode_key, by = "unique_episode_id") %>%
+      left_join(fas_key, by = "id") %>%
+      left_join(fas_episode_key, by = "unique_episode_id") %>%
       select(-id, -unique_episode_id, -assess_age, -gender) %>%
       mutate(fake_id = as.factor(fake_id),
              fake_episode_id = as.factor(fake_episode_id))

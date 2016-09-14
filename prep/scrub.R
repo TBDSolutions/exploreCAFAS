@@ -60,7 +60,7 @@ library(car)
              # Assessment vars
              assess_type,assess_period,assess_date,assessor,assess_status,most_recent,
              # Personal Characteristics
-             gender,assess_age,age_range,living_situation,
+             living_situation,
              # Assessment
              tier:n_crit)
     

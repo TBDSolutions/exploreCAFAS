@@ -49,6 +49,19 @@ library(car)
              -assess_age,-gender,-age_range) %>%
       mutate(fake_id = as.factor(fake_id),
              fake_episode_id = as.factor(fake_episode_id),
-             rev_fake_episode_id = as.factor(rev_fake_episode_id))
+             rev_fake_episode_id = as.factor(rev_fake_episode_id)) %>%
+      select(fake_id,client_status,cmh,service_area,program_name,version,
+             # Episode vars
+             fake_episode_id,episode_num,episode_start,episode_end,assess_ord,
+             assess_num,episode_elapsed,episode_length,
+             # Revised episode vars
+             rev_fake_episode_id,rev_episode_num,rev_episode_start,rev_episode_end,rev_assess_ord,
+             since,
+             # Assessment vars
+             assess_type,assess_period,assess_date,assessor,assess_status,most_recent,
+             # Personal Characteristics
+             gender,assess_age,age_range,living_situation,
+             # Assessment
+             tier:n_crit)
     
 write.csv(scrub_fas,"data/scrub_fas.csv", row.names = F)

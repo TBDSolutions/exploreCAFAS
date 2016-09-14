@@ -45,7 +45,7 @@ library(car)
       left_join(fas_key, by = "id") %>%
       left_join(fas_episode_key, by = "unique_episode_id") %>%
       left_join(rev_fas_episode_key, by = "rev_episode_id") %>%   
-      select(-id,-unique_episode_id,rev_episode_id,
+      select(-id,-unique_episode_id,-rev_episode_id,
              -assess_age,-gender,-age_range) %>%
       mutate(fake_id = as.factor(fake_id),
              fake_episode_id = as.factor(fake_episode_id),

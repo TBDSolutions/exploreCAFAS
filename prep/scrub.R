@@ -6,9 +6,10 @@ library(tidyr)
 library(car)
 
 # Define dataset without PHI to use with Shiny Apps 
+# Assumes that the episode grouper has already been run
 
   # Make an ID key
-    id <- unique(sub_fas$id)
+    id <- unique(grp_fas$id)
     fas_key <- data.frame(id)
     fas_key$fake_id <- sample(x = 100000001:999999999, 
                               size = length(fas_key$id), 
@@ -18,7 +19,7 @@ library(car)
     rm(id)
 
   # Make an episode key
-    unique_episode_id <- unique(sub_fas$unique_episode_id)
+    unique_episode_id <- unique(grp_fas$unique_episode_id)
     fas_episode_key <- data.frame(unique_episode_id)
     fas_episode_key$fake_episode_id <- sample(x = 100000001:999999999, 
                                               size = length(fas_episode_key$unique_episode_id), 
@@ -29,7 +30,7 @@ library(car)
     
   # Make PHI-free dataset
     scrub_fas <-
-      sub_fas %>%
+      grp_fas %>%
       mutate(id = as.character(id)) %>%
       left_join(fas_key, by = "id") %>%
       left_join(fas_episode_key, by = "unique_episode_id") %>%

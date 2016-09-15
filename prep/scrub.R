@@ -53,10 +53,10 @@ library(car)
       select(fake_id,client_status,cmh,service_area,program_name,version,
              # Episode vars
              fake_episode_id,episode_num,episode_start,episode_end,assess_ord,
-             assess_num,episode_elapsed,episode_length,
+             episode_elapsed,episode_length,
              # Revised episode vars
              rev_fake_episode_id,rev_episode_num,rev_episode_start,rev_episode_end,rev_assess_ord,
-             since,
+             rev_episode_elapsed,rev_episode_length,
              # Assessment vars
              assess_type,assess_period,assess_date,assessor,assess_status,most_recent,
              # Personal Characteristics

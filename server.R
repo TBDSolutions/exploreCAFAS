@@ -399,6 +399,8 @@ shinyServer(
                & most_recent == T) %>%
         mutate(interval = recode(assess_type, 
                                  recodes = "'Exit CAFAS' = 'Discharge';
+                                 'Exit PECFAS' = 'Discharge';
+                                 'Initial CAFAS' = 'Intake';
                                  'Initial CAFAS' = 'Intake';
                                  'Revised Initial' = 'Intake';
                                  else = 'In treatment'"),
@@ -414,7 +416,10 @@ shinyServer(
         droplevels()
       
       
+      
       if (input$radio_elig_pct == "Number") {
+        
+        notetxt <- "At their most recent assessment, how many<br>kids did not meet eligibility criteria?"
         
         df %>%
           arrange(desc(Ineligible)) %>%
@@ -427,9 +432,16 @@ shinyServer(
                               categoryarray = cmh, categoryorder = "category ascending"),
                  yaxis = list(title = "# of youth assessed"), #, range = c(0, 100)
                  legend = list(font = list(size = 10)),
-                 barmode = "stack")
+                 barmode = "stack",
+                 annotations = list(
+                   list(x = 0, xanchor = "left", 
+                        y = 1, yanchor = "top", yref = "paper",
+                        showarrow = F, align = "left",
+                        text = notetxt)))
         
       } else if (input$radio_elig_pct == "Percent")  {
+        
+        notetxt <- "At their most recent assessment, what percent of<br>kids did not meet eligibility criteria?"
         
         df %>%
           arrange(desc(Pct_Inel)) %>%
@@ -441,7 +453,12 @@ shinyServer(
                  xaxis = list(title = "CMHSP", showticklabels = F,
                               categoryarray = cmh, categoryorder = "category ascending"),
                  yaxis = list(title = "% of youth assessed", range = c(0, 100)), 
-                 legend = list(font = list(size = 10)))
+                 legend = list(font = list(size = 10)),
+                 annotations = list(
+                   list(x = 0, xanchor = "left", 
+                        y = 1, yanchor = "top", yref = "paper",
+                        showarrow = F, align = "left",
+                        text = notetxt)))
         
       } else paste0("Uh-oh.  Input is neither number or percent.")
       

@@ -21,29 +21,54 @@ dashboardPage(skin = "yellow",
         tabName = "misc", 
         icon = icon("paper-plane")
       ),
-      selectInput(
-        "agency",
-        label = "Pick an agency:",
-        choices = c("All", levels(unique(scrub_cafas$cmh))), 
-        selected = "All"
+      uiOutput("select_episode"),
+      uiOutput("select_version"),
+      menuItem(
+        "Other filters",
+        icon = icon("filter"),
+        menuSubItem(
+          icon = NULL,
+          selectInput(
+            "agency",
+            label = "Pick an agency:",
+            choices = c("All", levels(unique(scrub_fas$cmh))), 
+            selected = "All"
+          )
+        ),
+        menuSubItem(
+          icon = NULL,
+          radioButtons(
+            "radio_status",
+            label = "Treatment Status:",
+            choices = c("Active", "Inactive", "Either"), 
+            selected = "Either",
+            inline = T
+          )
+        ),
+        menuSubItem(
+          icon = NULL,
+          dateRangeInput(
+            'dateRange',
+            label = 'Date range:',
+            # Start date defaults to earliest date in dataset which is the max
+            # date for a given client (i.e. id)
+            start = min(as.Date(scrub_fas$max_date)[as.Date(scrub_fas$max_date) <= Sys.Date()]), 
+            # End date defaults to date of most recent data in dataset
+            # to avoid user confusion. Filtering on end date should still filter 
+            # value passed against 'max_date' variable in data.
+            end = max(as.Date(scrub_fas$assess_date)[as.Date(scrub_fas$assess_date) <= Sys.Date()])
+          )
+        )
       ),
-      radioButtons(
-        "radio_status",
-        label = "Treatment Status:",
-        choices = c("Active", "Inactive", "Either"), 
-        selected = "Either",
-        inline = T
-      ),
-      dateRangeInput(
-        'dateRange',
-        label = 'Date range:',
-        start = min(as.Date(scrub_cafas$assess_date)[as.Date(scrub_cafas$assess_date) <= Sys.Date()]), 
-        end = max(as.Date(scrub_cafas$assess_date)[as.Date(scrub_cafas$assess_date) <= Sys.Date()])
+      menuItem(
+        "About", 
+        tabName = "about", 
+        icon = icon("info-circle")
       ),
       textOutput("valid_date"),
       br(),
       em(
-        paste0("   Data updated ",max(as.Date(scrub_cafas$assess_date)[as.Date(scrub_cafas$assess_date) <= Sys.Date()]))
+        paste0("   Data updated ",max(as.Date(scrub_fas$assess_date)[as.Date(scrub_fas$assess_date) <= Sys.Date()]))
       )
     )
   ),
@@ -59,11 +84,11 @@ dashboardPage(skin = "yellow",
               status = "warning",
               collapsible = TRUE, 
               width = NULL,
-              uiOutput("select_measure"),
               tabBox(
                 width = 6,
                 tabPanel(
                   "Compare",
+                  uiOutput("select_measure"),
                   plotlyOutput("outcome_bar")
                 ),
                 tabPanel(
@@ -77,9 +102,8 @@ dashboardPage(skin = "yellow",
               tabBox(
                 width = 6,
                 tabPanel(
-                  "Trend",
-                  "etc."
-                  #plotlyOutput("outcome_line")
+                  "Breakdown",
+                  plotlyOutput("avg_scale")
                 )
               )
             )
@@ -148,6 +172,16 @@ dashboardPage(skin = "yellow",
                         br(),
                         "c. One 30 on any subscale of the CAFAS, except for 
                         substance abuse only."
+                      ),
+                      p(
+                        "Please note that, while these criteria have frequently 
+                        been interpreted as applying at the point of access 
+                        (i.e. as entrance criteria), they have not consistently 
+                        been used as ongoing criteria for continued eligibility.  
+                        Since CAFAS is intended to complement the goals of the 
+                        plan of care, however, scores indicating a decrease in 
+                        need should correspond to a change in treatment 
+                        provision."
                       )
                     ),
                     tabPanel(
@@ -257,7 +291,7 @@ dashboardPage(skin = "yellow",
                     be possible to distinguish patterns that may call for 
                     different types of treatment."
                   ),
-                  h4("How many groups of people? (Rows)"),
+                  h4("How many clusters of kids?"),
                   p(
                     "Depending on your particular situation, you may want to 
                     focus on greater or fewer clusters of kids' intake scores. Each 
@@ -290,6 +324,183 @@ dashboardPage(skin = "yellow",
                     Here, a darker blue means a higher score."
                   ),
                   d3heatmapOutput("heatmap")
+                )
+              )
+            )
+          )
+        )
+      ),
+      tabItem(
+        tabName = "about",
+        fluidRow(
+          column(
+            width = 12,
+            box(
+              title = "Episode Groupings", 
+              status = "warning",
+              collapsible = TRUE, 
+              collapsed = F,
+              width = NULL,
+              tabBox(
+                width = NULL,
+                tabPanel(
+                  "Rationale",
+                  p(
+                    "This application offers two options for grouping episodes: ",
+                    em("System Default"), "and ", em("Common Episodes"),".  ",
+                    "The groupings shown by the ",em("System Default"),
+                    " option use the episode labels from the source dataset.  
+                    The application also includes an option for ", 
+                    em("Common Episodes"),", which implement a new, consistent 
+                    grouping logic across all organizations and assessors."
+                  ),
+                  br(),
+                  strong("Why use a new grouping logic?"),
+                  p(
+                    "The CAFAS® and PECFAS® datasets include an episode number,  
+                    which is generated when an employee activates a case in the 
+                    FAS® system.  New episodes may be generated in the system 
+                    for multiple reasons, including life changes that cue a 
+                    significant alteration in treatment plan.  While these may 
+                    be valid reasons for thinking of treatment as having entered 
+                    a new phase, the logic used is subjective and not applied 
+                    consistently across all assessors."
+                  ),
+                  p(
+                    "In addition, the default method uses an episode start date 
+                    related to the creation of the episode, while the initial 
+                    assessment may occur later for multiple reasons (", 
+                    em("e.g. no-show, rescheduling, etc."),".  ", 
+                    "It is therefore more accurate to use the initial assessment 
+                    date as the start date for an episode, since the assessment 
+                    serves as the first step of service provision and a baseline 
+                    for the measurement of improvement."
+                  ),
+                  p(
+                    "Another inconsistency occurs regarding episodes during 
+                    which children transition, or 'age out' of the PECFAS® tool 
+                    and workers begin to use the CAFAS® tool instead.  When this 
+                    occurs, some workers complete an 'initial CAFAS®', rather 
+                    than continuing the same episode begun with the PECFAS®, and 
+                    thereby create a new episode identifier. Since this practice 
+                    is inconsistent, it leads to episodes built on different 
+                    definitions.  There is also inconsistent practice around 
+                    combining episodes that occur within 90 days."
+                  ),
+                  p(
+                    "In order to consistently define treatment episodes for 
+                    measuring outcomes and other features of clinical treatment, 
+                    it is important to use a consistent definition of a 
+                    treatment episode. This is what the ", em("Common Episodes"), 
+                    " option provides."
+                  )
+                ),
+                tabPanel(
+                  "Methodology",
+                  strong("Spanning Tools"),
+                  p(
+                    "The new method allows for consistent episode groupings that 
+                    span PECFAS® and CAFAS®.  For this reason, a combined 
+                    dataset with assessment data from both tools is processed 
+                    using the grouping logic.  Users can still select a single 
+                    tool as well using the filters provided. ", 
+                    em("Caveat: Comparisons between baseline and update score 
+                       using mixed episodes are somewhat less likely to show 
+                       improvement, since PECFAS® has a max score of 210, 
+                       while CAFAS® has a max score of 240.")
+                  ),
+                  strong("Episode Scope"),
+                  p(
+                    "All assessments are grouped by the Client ID field and the 
+                    name of the Organization.  Using this definition, an episode 
+                    never bridges multiple organizations, but may bridge service 
+                    areas or programs within a given organization.  Records 
+                    where either of these grouping variables are filtered out of 
+                    the dataset."
+                  ),
+                  p(
+                    "While some might wish to create episodes that span 
+                    transitions between multiple organizations, this is not 
+                    possible since each organization determines its own logic 
+                    for assigning Client IDs, which could lead to instances 
+                    where the same ID would mistakenly be applied to different 
+                    persons."
+                  ),
+                  p(
+                    em("Note:  "), 
+                    "Persons returning for services after previously receiving 
+                    treatment are merged with an existing ID in the FAS Online 
+                    system.  Unfortunately, there may be some instances where a 
+                    returning individual would not be matched due to the lookup 
+                    process in that system."
+                  ),
+                  strong("Ordering Assessments within an Episode"),
+                  p(
+                    "Within the groupings detailed above, assessments are 
+                    arranged by the date on which they occurred to determine 
+                    sequence.  The first assessment for any Client ID in a given 
+                    organization is automatically marked as episode 1, then 
+                    increments from there when conditions are met, as detailed 
+                    below."
+                  ),
+                  strong("Boundaries of Episodes"),
+                  p(
+                    "The episode counter increments by one (", 
+                    em("a.k.a. a new episode is created"),") when the previous 
+                    assessment has been tagged as the 'last' in an episode.  
+                    Records are tagged if ", 
+                    em("BOTH"), " of the following conditions are met:",
+                    tags$ul(
+                      tags$li("the next assessment is", em("Initial"), " or ", 
+                              em("Revised Initial"), 
+                              ".  (Note: Revised Initial assessments are serve 
+                              to trigger the beginning of episodes, since there 
+                              are instances when the initial is incompletely 
+                              filled out by access staff and are therefore 
+                              excluded from this data, due to incompleteness.)"),
+                      tags$li(">= 120 days elapse before next assessment (Note: 
+                              By this point all 'initial' assessments which are 
+                              followed by a 'revised initial' have been removed.")
+                    ),
+                    "unless the following occurs:",
+                    tags$ul(
+                      tags$li(em("Exception"),": A new episode is not triggered 
+                              if the first assessment in the episode has been 
+                              cued by assess_type of 'Initial PECFAS' and then 
+                              'Initial CAFAS' occurs during the course of that 
+                              episode.")
+                    )
+                  ),
+                  strong("Apply Episode Dates"),
+                  p(
+                    "Within the episodes defined by the logic above, episode 
+                    'start' and 'end' dates are defined, using the initial 
+                    assessment date as the start and the most recent assessment 
+                    date as the end date.  If the child's status is 'Active', 
+                    the episode end date for the most recent episode is set to 
+                    be blank."
+                  ),
+                  p(
+                    em("Note: The end date of episode is not necessarily marked 
+                       as an 'Exit CAFAS', since this label is inconsistently 
+                       used in practice (e.g. in the case that someone 
+                       discontinues AMA following the assessment). If an 
+                       assessment is not marked as an 'Exit CAFAS' and the child 
+                       is not closed, then the end date of the episode will 
+                       remain empty.  The episode will continue to be marked as 
+                       active and calculations of the duration of the episode 
+                       will continue to be calculated between the start date and 
+                       the most recent system update (rather than an episode end 
+                       date) which will lead to longer episodes.")
+                  )
+                ),
+                tabPanel(
+                  "Comparison",
+                  p(
+                    "The table below compares basic summaries of the different 
+                    episode grouping methods outlined here:"
+                  ),
+                  dataTableOutput("summary_episodes")
                 )
               )
             )

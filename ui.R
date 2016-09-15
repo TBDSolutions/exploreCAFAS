@@ -17,9 +17,14 @@ dashboardPage(skin = "yellow",
         icon = icon("sign-in")
       ),
       menuItem(
-        "Miscellany", 
-        tabName = "misc", 
+        "Paths", 
+        tabName = "paths", 
         icon = icon("paper-plane")
+      ),
+      menuItem(
+        "Patterns", 
+        tabName = "patterns", 
+        icon = icon("random")
       ),
       uiOutput("select_episode"),
       uiOutput("select_version"),
@@ -85,7 +90,7 @@ dashboardPage(skin = "yellow",
               collapsible = TRUE, 
               width = NULL,
               tabBox(
-                width = 6,
+                width = 12,
                 tabPanel(
                   "Compare",
                   uiOutput("select_measure"),
@@ -97,13 +102,6 @@ dashboardPage(skin = "yellow",
                   strong("...the measure you've selected..."),
                   br(),
                   h5(textOutput("define"))
-                )
-              ),
-              tabBox(
-                width = 6,
-                tabPanel(
-                  "Breakdown",
-                  plotlyOutput("avg_scale")
                 )
               )
             )
@@ -121,7 +119,7 @@ dashboardPage(skin = "yellow",
               collapsible = TRUE, 
               width = NULL,
               tabBox(
-                width = 6,
+                width = 12,
                 tabPanel(
                   "Compare",
                   radioButtons(
@@ -236,21 +234,13 @@ dashboardPage(skin = "yellow",
                     )
                   )
                 )
-              ),
-              tabBox(
-                width = 6,
-                tabPanel(
-                  "Trend",
-                  "etc."
-                  #plotlyOutput("outcome_line")
-                )
               )
             )
           )
         )
       ),
       tabItem(
-        tabName = "misc",
+        tabName = "paths",
         fluidRow(
           column(
             width = 12,
@@ -258,7 +248,7 @@ dashboardPage(skin = "yellow",
               title = "Paths", 
               status = "warning",
               collapsible = TRUE, 
-              collapsed = TRUE,
+              collapsed = F,
               width = NULL,
               tabBox(
                 width = NULL,
@@ -274,12 +264,20 @@ dashboardPage(skin = "yellow",
                   dygraphOutput("all_linechart")
                 )
               )
-            ),
+            )
+          )
+        )
+      ),
+      tabItem(
+        tabName = "patterns",
+        fluidRow(
+          column(
+            width = 12,
             box(
               title = "Patterns of Need", 
               status = "warning",
               collapsible = TRUE, 
-              collapsed = TRUE,
+              collapsed = F,
               width = NULL,
               tabBox(
                 width = NULL,
@@ -287,7 +285,7 @@ dashboardPage(skin = "yellow",
                   "Defining Patterns",
                   p(
                     "If we look at the patterns of need that kids have in 
-                    various domains (measured by the CAFAS subscales), it may 
+                    various domains (measured by the PECFAS/CAFAS subscales), it may 
                     be possible to distinguish patterns that may call for 
                     different types of treatment."
                   ),
@@ -298,7 +296,7 @@ dashboardPage(skin = "yellow",
                     intake score is depicted as a row in the heatmap.  You can 
                     select the number of clusters below.  This will 
                     color the clusters of intake scores whose patterns of need 
-                    are most distinct, based on the CAFAS subscales:"
+                    are most distinct, based on the PECFAS/CAFAS subscales:"
                   ),
                   numericInput(
                     inputId = "need_rows",
@@ -501,6 +499,26 @@ dashboardPage(skin = "yellow",
                     episode grouping methods outlined here:"
                   ),
                   dataTableOutput("summary_episodes")
+                ),
+                tabPanel(
+                  "Suggestions",
+                  p(
+                    "You can review the technical details of the episode 
+                    groupings (",em("and anything else that's part of this app!"),
+                    ") in the source code, available",
+                    a(href="https://github.com/j-hagedorn/exploreCAFAS/blob/master/prep/episode_grouper_FAS.R", 
+                      "here on GitHub"),"."
+                  ),
+                  p(
+                    "If you have suggestions on how to improve this process, 
+                    please feel free to submit a pull request to the ",
+                    a(href = "https://github.com/j-hagedorn/exploreCAFAS",
+                      "exploreCAFAS repository"),
+                    "or (if you don't speak code) describe the proposed changes 
+                    in detail by ",
+                    a(href = "https://github.com/j-hagedorn/exploreCAFAS/issues/new",
+                      "filing an issue here")
+                  )
                 )
               )
             )

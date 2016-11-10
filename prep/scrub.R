@@ -62,6 +62,8 @@ library(car)
              # Personal Characteristics
              living_situation,
              # Assessment
-             tier:n_crit)
+             tier:n_crit,
+             # Everything else from local vars
+             everything())
     
 write.csv(scrub_fas,"data/scrub_fas.csv", row.names = F)

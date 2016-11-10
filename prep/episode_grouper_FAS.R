@@ -150,7 +150,7 @@ grp_fas <-
          rev_episode_id,rev_episode_num,rev_episode_start,rev_episode_end,rev_assess_ord,
          rev_episode_elapsed,rev_episode_length,
          # Assessment vars
-         assess_type,assess_period,assess_date,assessor,assess_status,most_recent,
+         assessmentID,assess_type,assess_period,assess_date,assessor,assess_status,most_recent,
          # Personal Characteristics
          gender,assess_age,age_range,living_situation,
          # Assessment

@@ -7,14 +7,14 @@ dashboardPage(skin = "yellow",
   dashboardSidebar(
     sidebarMenu(
       menuItem(
-        "Outcomes", 
-        tabName = "outcomes", 
-        icon = icon("sun-o")
-      ),
-      menuItem(
         "Population Needs", 
         tabName = "pop_need", 
         icon = icon("life-ring")
+      ),
+      menuItem(
+        "Outcomes", 
+        tabName = "outcomes", 
+        icon = icon("sun-o")
       ),
       menuItem(
         "Eligibility", 
@@ -27,9 +27,9 @@ dashboardPage(skin = "yellow",
         icon = icon("paper-plane")
       ),
       menuItem(
-        "Patterns", 
-        tabName = "patterns", 
-        icon = icon("random")
+        "Patterns of Need", 
+        tabName = "pattern", 
+        icon = icon("cubes")
       ),
       menuItem(
         "Filters",
@@ -93,47 +93,12 @@ dashboardPage(skin = "yellow",
     )
   ),
   dashboardBody(
+    #suppress errors from waiting data to be built.
+    tags$style(type="text/css",
+               ".shiny-output-error { visibility: hidden; }",
+               ".shiny-output-error:before { visibility: hidden; }"
+    ),
     tabItems(
-      tabItem(
-        tabName = "outcomes",
-        fluidRow(
-          column(
-            width = 12,
-            box(
-              title = "Outcome Measures", 
-              status = "warning",
-              collapsible = TRUE, 
-              width = NULL,
-              tabBox(
-                width = 12,
-                tabPanel(
-                  "Compare",
-                  box(
-                    title = "Select a measure...", 
-                    color = "black",
-                    collapsible = TRUE, 
-                    collapsed = TRUE,
-                    width = NULL,
-                    uiOutput("select_measure")
-                  ),
-                  plotlyOutput("outcome_bar"),
-                  br(),
-                  box(
-                    title = "About", 
-                    color = "black",
-                    collapsible = TRUE,
-                    collapsed = T,
-                    width = NULL,
-                    strong("...the measure you've selected..."),
-                    br(),
-                    h5(textOutput("define"))
-                  )
-                )
-              )
-            )
-          )
-        )
-      ),
       tabItem(
         tabName = "pop_need",
         fluidRow(
@@ -156,6 +121,18 @@ dashboardPage(skin = "yellow",
                     collapsible = TRUE,
                     collapsed = F,
                     width = NULL,
+                    checkboxInput(
+                      "remove_dc", 
+                      "Remove discharge assessments? ", 
+                      value = TRUE, 
+                      width = NULL
+                    ),
+                    em(
+                      "By default, the final assessment of an episode is 
+                      excluded as it is expected that the child has lower needs 
+                      than their current level of care at this point in treatment."
+                    ),
+                    br(),
                     radioButtons(
                       "split",
                       label = "Display:",
@@ -213,21 +190,88 @@ dashboardPage(skin = "yellow",
                 ),
                 tabPanel(
                   "By CMH",
-                  plotlyOutput("hist_cmh"),
-                  box(
-                    title = "Chart settings", 
-                    color = "black",
-                    collapsible = TRUE,
-                    collapsed = F,
-                    width = NULL,
-                    uiOutput("assess_num_again"),
-                    em("Use this slider if you want to see the distribution of 
-                       scores at the beginning, middle, or end of treatment.")
+                  fluidRow(
+                    column(
+                      width = 6, 
+                      box(
+                        title = "Table", 
+                        color = "black",
+                        collapsible = TRUE,
+                        collapsed = F,
+                        width = NULL,
+                        dataTableOutput("by_cmh_dt"),
+                        p(
+                          uiOutput("kw_isdiff")
+                        )
+                      )
+                    ),
+                    column(
+                      width = 6,
+                      box(
+                        title = "Are they different?", 
+                        color = "black",
+                        collapsible = TRUE,
+                        collapsed = T,
+                        width = NULL,
+                        p(
+                          "The graph below shows which agencies have population 
+                          medians that are significantly different.  Each colored 
+                          box compares one agency to another.  A darker color 
+                          indicates greater significance, while empty boxes 
+                          indicate that the two agencies were not different 
+                          enough to pass a test for significance."
+                        ),
+                        plotlyOutput("by_cmh_kw"),
+                        box(
+                          title = "Details", 
+                          color = "black",
+                          collapsible = TRUE,
+                          collapsed = T,
+                          width = NULL,
+                          p(
+                            "The analysis used to determine whether there were any 
+                            agencies with different group medians is called a ", 
+                            a(href = "https://en.wikipedia.org/wiki/Kruskal%E2%80%93Wallis_one-way_analysis_of_variance", 
+                              "Kruskal-Wallis test"), "."
+                          ),
+                          p(
+                            "Pairwise comparisons between agencies are done using a ",
+                            a(href = "https://en.wikipedia.org/wiki/Mann%E2%80%93Whitney_U_test#Example_statement_of_results",
+                              "Mann-Whitney test"), 
+                            " to determine if the distributions in the two groups 
+                            differed significantly."
+                          )
+                        )
+                      ),
+                      box(
+                        title = "Plots", 
+                        color = "black",
+                        collapsible = TRUE,
+                        collapsed = F,
+                        width = NULL,
+                        plotlyOutput("hist_box_cmh"),
+                        box(
+                          title = "Settings", 
+                          color = "black",
+                          collapsible = TRUE,
+                          collapsed = F,
+                          width = NULL,
+                          radioButtons(
+                            "By_CMH_display",
+                            label = "Display:",
+                            choices = c("Facetted histogram", "Boxplot"), 
+                            selected = "Facetted histogram",
+                            inline = T
+                          ),
+                          uiOutput("assess_num_again"),
+                          em(
+                            "Use this slider if you want to see the distribution 
+                            of scores at the beginning, middle, or end of treatment."
+                          )
+                        )
+                      )
+                    )
                   )
-                ),
-                tabPanel(
-                  "Boxplots",
-                  plotlyOutput("box_fas")
                 ),
                 tabPanel(
                   "Relating Services to Needs",
@@ -262,6 +306,15 @@ dashboardPage(skin = "yellow",
                                       "Highest CAFAS Score during Episode", 
                                       "Change in CAFAS Score during Episode"),
                           selected = "Initial CAFAS Score in Episode"
+                        ),
+                        selectInput(
+                          "regress_input",
+                          label = "Display selected input:",
+                          choices = c("Intercept" = "intercept",
+                                      "Good fit?" = "r.squared",
+                                      "Significance" = "p.value"),
+                          selected = c("Intercept","Significance"),
+                          multiple = T
                         ),
                         checkboxInput(
                           "remove_out", 
@@ -306,59 +359,60 @@ dashboardPage(skin = "yellow",
                         collapsed = F,
                         width = NULL,
                         dataTableOutput("regress_dt")
-                      ),
-                      box(
-                        title = "Plot", 
-                        color = "black",
-                        collapsible = TRUE,
-                        collapsed = T,
-                        width = NULL,
-                        plotlyOutput("regress"),
-                        br(),
-                        checkboxInput(
-                          "ribbons", 
-                          "Include uncertainty ribbons", 
-                          value = FALSE, 
-                          width = NULL
-                        ),
-                        p(
-                          em("The thickness of an uncertainty ribbon gives an 
-                             indication of the relative uncertainty at that point 
-                             on the line.  If uncertainty lines overlap, it is 
-                             uncertain whether the actual values are distinct.")
-                        ),
-                        box(
-                          title = "Considerations", 
-                          color = "black",
-                          collapsible = TRUE,
-                          collapsed = T,
-                          width = NULL,
-                          p(
-                            "The following considerations may help to inform your 
-                            interpretation of the data shown here:",
-                            tags$ul(
-                              tags$li(strong("High scores with low or zero LOS: "),
-                                      "If a youth's initial score is high and length 
-                                      of episode is either very low or zero, it is 
-                                      possible that the youth were admitted to the 
-                                      hospital in certain cases.  If the 
-                                      hospitalization resulted in the end of agency
-                                      services or in the start of a new episode upon 
-                                      return, the LOS metric might not be a suitable 
-                                      proxy for resource use during a given episode.  
-                                      In such instances, the number or cost of 
-                                      services may be a better indicator."),
-                              tags$li(strong("Outliers highlighted: "),
-                                      "Please note that outliers are highlighted in 
-                                      the plot when the ",em("Remove outliers?"),
-                                      " checkbox is not selected.  Clicking on the 
-                                      legend to hide the outliers in the plot does 
-                                      not, however, remove them from the linear 
-                                      model which produces the line.")
-                            )
-                          )
-                        )
                       )
+                      # ,
+                      # box(
+                      #   title = "Plot", 
+                      #   color = "black",
+                      #   collapsible = TRUE,
+                      #   collapsed = T,
+                      #   width = NULL,
+                      #   plotlyOutput("regress"),
+                      #   br(),
+                      #   checkboxInput(
+                      #     "ribbons", 
+                      #     "Include uncertainty ribbons", 
+                      #     value = FALSE, 
+                      #     width = NULL
+                      #   ),
+                      #   p(
+                      #     em("The thickness of an uncertainty ribbon gives an 
+                      #        indication of the relative uncertainty at that point 
+                      #        on the line.  If uncertainty lines overlap, it is 
+                      #        uncertain whether the actual values are distinct.")
+                      #   ),
+                      #   box(
+                      #     title = "Considerations", 
+                      #     color = "black",
+                      #     collapsible = TRUE,
+                      #     collapsed = T,
+                      #     width = NULL,
+                      #     p(
+                      #       "The following considerations may help to inform your 
+                      #       interpretation of the data shown here:",
+                      #       tags$ul(
+                      #         tags$li(strong("High scores with low or zero LOS: "),
+                      #                 "If a youth's initial score is high and length 
+                      #                 of episode is either very low or zero, it is 
+                      #                 possible that the youth were admitted to the 
+                      #                 hospital in certain cases.  If the 
+                      #                 hospitalization resulted in the end of agency
+                      #                 services or in the start of a new episode upon 
+                      #                 return, the LOS metric might not be a suitable 
+                      #                 proxy for resource use during a given episode.  
+                      #                 In such instances, the number or cost of 
+                      #                 services may be a better indicator."),
+                      #         tags$li(strong("Outliers highlighted: "),
+                      #                 "Please note that outliers are highlighted in 
+                      #                 the plot when the ",em("Remove outliers?"),
+                      #                 " checkbox is not selected.  Clicking on the 
+                      #                 legend to hide the outliers in the plot does 
+                      #                 not, however, remove them from the linear 
+                      #                 model which produces the line.")
+                      #       )
+                      #     )
+                      #   )
+                      # )
                     )
                   )
                 ),
@@ -463,6 +517,46 @@ dashboardPage(skin = "yellow",
                         assessors scoring individuals."
                       )
                     )
+                  )
+                )
+              )
+            )
+          )
+        )
+      ),
+      tabItem(
+        tabName = "outcomes",
+        fluidRow(
+          column(
+            width = 12,
+            box(
+              title = "Outcome Measures", 
+              status = "warning",
+              collapsible = TRUE, 
+              width = NULL,
+              tabBox(
+                width = 12,
+                tabPanel(
+                  "Compare",
+                  box(
+                    title = "Select a measure...", 
+                    color = "black",
+                    collapsible = TRUE, 
+                    collapsed = F,
+                    width = NULL,
+                    uiOutput("select_measure")
+                  ),
+                  plotlyOutput("outcome_bar"),
+                  br(),
+                  box(
+                    title = "About", 
+                    color = "black",
+                    collapsible = TRUE,
+                    collapsed = T,
+                    width = NULL,
+                    strong("...the measure you've selected..."),
+                    br(),
+                    h5(textOutput("define"))
                   )
                 )
               )
@@ -662,59 +756,291 @@ dashboardPage(skin = "yellow",
         )
       ),
       tabItem(
-        tabName = "patterns",
-        fluidRow(
-          column(
-            width = 12,
-            box(
-              title = "Patterns of Need", 
-              status = "warning",
-              collapsible = TRUE, 
-              collapsed = F,
+        tabName = "pattern",
+        column(
+          width = 4,
+          box(
+            title = "Defining Patterns", 
+            status = "warning",
+            collapsible = TRUE, 
+            width = NULL,
+            tabBox(
               width = NULL,
-              tabBox(
-                width = NULL,
-                tabPanel(
-                  "Defining Patterns",
+              tabPanel(
+                "What groups?",
+                p(
+                  "To design programs that meet people where they are, it 
+                  helps to understand patterns in the types of needs that 
+                  people have in various areas of their lives. You can 
+                  check out the ", em("Why group?"), " tab for examples of 
+                  scenarios where this may be useful."  
+                ),
+                h4("How many groups of people?"),
+                p(
+                  "Depending on your particular situation, you may want to 
+                  focus on greater or fewer groups of clients.  You can 
+                  select the number of groups here: "
+                ),
+                numericInput(
+                  inputId = "need_rows",
+                  label = NULL, 
+                  value = 5,
+                  min = 1, 
+                  max = 10,
+                  width = '100px'
+                ),
+                radioButtons(
+                  "need_filt",
+                  label = "Include assessments at:",
+                  choices = c("intake only","all assessments"), 
+                  selected = "intake only",
+                  inline = T
+                ),
+                p(
+                  "Then, view the summary table and expand the other tabs to explore 
+                  the groups in your population..."
+                ),
+                box(
+                  title = "Picking a number", 
+                  color = "black",
+                  collapsible = TRUE, 
+                  collapsed = T,
+                  width = NULL,
                   p(
-                    "If we look at the patterns of need that kids have in 
-                    various domains (measured by the PECFAS/CAFAS subscales), it may 
-                    be possible to distinguish patterns that may call for 
-                    different types of treatment."
+                    "This is called a scree plot, and it shows the amount of 
+                    variation explained by each additional cluster added.  
+                    You'll note that after a certain point, the line starts 
+                    going straight across the bottom, which means that new 
+                    clusters don't do much to identify coherent groups.  
+                    To find the maximum number of meaningful clusters, don't go 
+                    farther than the 'elbow' of the chart below..."
                   ),
-                  h4("How many clusters of kids?"),
+                  plotlyOutput("need_scree")
+                )
+              ),
+              tabPanel(
+                "Why group?",
+                p(
+                  "The following scenarios provide examples of instances where 
+                  it may be helpful to define patterns of need in the population 
+                  being served:"
+                ),
+                box(
+                  title = "Build Specialized Teams", 
+                  color = "black",
+                  collapsible = TRUE, collapsed = T, width = NULL,
                   p(
-                    "Depending on your particular situation, you may want to 
-                    focus on greater or fewer clusters of kids' intake scores. Each 
-                    intake score is depicted as a row in the heatmap.  You can 
-                    select the number of clusters below.  This will 
-                    color the clusters of intake scores whose patterns of need 
-                    are most distinct, based on the PECFAS/CAFAS subscales:"
-                  ),
-                  numericInput(
-                    inputId = "need_rows",
-                    label = NULL, 
-                    value = 5,
-                    min = 2, 
-                    max = 10,
-                    width = '100px'
-                  ),
-                  p(
-                    "Then, click on the ", em("Heatmap"), " tab to explore 
-                    the groups in your population."
+                    "A supervisor of a supports coordination team for children with 
+                    SED would like to start a pilot program providing intensive, 
+                    multi-disciplinary team based integrated care for quadrant 
+                    four consumers (persons with high behavioral health and 
+                    physical health needs as defined in the Four Quadrant Clinical 
+                    Integration Model). She could use the heat map to identify a 
+                    group of patients for whom this intervention could be offered.",
+                    em(
+                      "(In this instance, if she were trying to assign people to 
+                      3 supports coordination programs, she may want to highlight 
+                      3 groups)"
+                    )
                   )
                 ),
-                tabPanel(
-                  "Heatmap",
+                box(
+                  title = "Implement Best Practice Guidelines", 
+                  color = "black",
+                  collapsible = TRUE, collapsed = T, width = NULL,
                   p(
-                    "The heatmap below shows scores at the start of each 
-                    treatment episode for each child.  Since the values are 
-                    scaled, you can't connect them back to a specific score 
-                    on a CAFAS subscale.  Instead, this helps us to look at 
-                    broader patterns across life domains among youth at intake. 
-                    Here, a darker blue means a higher score."
+                    "  A clinical director would like to identify clinical 
+                    guidelines to assist clinicians in recommending best 
+                    practices based on peoples needs. A first step could be 
+                    taking the domains listed on the heat map and 
+                    identifying any evidence based or best practice 
+                    interventions that meet that particular need for children 
+                    with SED."
+                  )
+                ),
+                box(
+                  title = "Identify Training Needs", 
+                  color = "black",
+                  collapsible = TRUE, collapsed = T, width = NULL,
+                  p(
+                    "A clinical director would like to know what types of 
+                    trainings would benefit the clinicians serving children 
+                    with SED at his agency. He could look at the clustering output 
+                    and determine which three areas represent the highest 
+                    need within the entire SED population served."
+                  )
+                )
+              ),
+              tabPanel(
+                "How?",
+                p(
+                  "Clustering is an exploratory technique.  It won't give you 
+                  any conclusive results, it often generates insights and 
+                  additional questions for analysis.  Here, we provide two different 
+                  methods of clustering, ", em("k-means"), " and ", 
+                  em("hierarchical clustering.")
+                ),
+                box(
+                  title = "K-means clustering", 
+                  color = "black",
+                  collapsible = TRUE, collapsed = T, width = NULL,
+                  p(
+                    "This algorithm uses the following procedure to classify a 
+                    given dataset into a certain number (k) of clusters:",
+                    tags$ul(
+                      tags$li("define k centroids, as far away from each other as possible"),
+                      tags$li("take each point in the data and associate it to the nearest centroid"),
+                      tags$li("re-calculate new centroids at the center of the cluster resulting from the previous step"),
+                      tags$li("repeat until the centroids do not move any more")
+                    ),
+                    "The algorithm is faster and easier to use on larger datasets,
+                    though it requires users to identify a number of clusters in 
+                    order to be run."
                   ),
-                  d3heatmapOutput("heatmap")
+                  p(
+                    "If you want to walk through a visual explanation of how k-means 
+                    algorithms work, you can check out ",
+                    a(
+                      href = "http://stanford.edu/class/ee103/visualizations/kmeans/kmeans.html",
+                      "this site from Stanford."
+                  )
+                )
+              ),
+              box(
+                title = "Hierarchical clustering", 
+                color = "black",
+                collapsible = TRUE, collapsed = T, width = NULL,
+                p(
+                  "Hierarchical clustering takes a ",
+                  a(
+                    href = "https://en.wikipedia.org/wiki/Distance_matrix",
+                    "distance matrix"
+                  ),
+                  " and uses the following procedure to classify each item from 
+                  a given dataset into a multiple levels of clusters:",
+                  tags$ul(
+                    tags$li("Assign each item to a cluster, so that if you have 
+                            N items, you now have N clusters, each with one item"),
+                    tags$li("Find the closest pair of clusters and merge them, 
+                            so there is one less cluster"),
+                    tags$li("Compute distances between the new cluster and each 
+                            of the old clusters"),
+                    tags$li("Repeat steps 2 and 3 until all items are in single 
+                            cluster of size N")
+                    )
+                  )
+                )
+              )
+            )
+          )
+        ),
+        column(
+          width = 8,
+          box(
+            title = "Summary of Clusters",
+            status = "warning",
+            collapsible = T,
+            width = NULL,
+            p(
+              em("The table below shows information for each of the clusters, 
+                 as well as the average scaled scores on each subscale of the  
+                 SIS for people in that cluster:")
+              ),
+            DT::dataTableOutput("need_grp_dt"),
+            box(
+              title = "Settings", 
+              color = "black",
+              collapsible = TRUE, collapsed = T, width = NULL,
+              radioButtons(
+                "dt_clust_type",
+                label = "Summarize groups using:",
+                choices = c("k-means clusters","hierarchical clusters"), 
+                selected = "k-means clusters",
+                inline = T
+              ),
+              p(
+                "To dig in and analyze the groupings created by the ",
+                em("k-means"), " algorithm, go to the ",
+                em("Visualizing Groups"), " tab.  To see the groups made by ",
+                em("hierarchical clustering"), ", check out the ",
+                em("Heatmap"), " visualization..."
+              )
+            )
+          ),
+          box(
+            title = "Visualizing Groups",
+            status = "warning",
+            collapsible = T,
+            collapsed = T,
+            width = NULL,
+            tabBox(
+              width = NULL,
+              tabPanel(
+                "What to compare?",
+                p(
+                  "People are wonderfully complex, even when you're just looking 
+                  at how they score on an assessment. This complexity can be 
+                  hard to visualize all at once. Since the k-means algorithm 
+                  groups people based on a number of variables taken together (", 
+                  em("here, the SIS subscales"), "), it's helpful to look at 
+                  different life areas to see how they vary across the clustered 
+                  groups. Below you can select the variables you'd like to 
+                  visualize before moving to the ", em("Visualize"), " panel."
+                  ),
+                uiOutput("k_vars")
+                ),
+              tabPanel(
+                "Visualize",
+                plotlyOutput("need_km")
+              )
+            )
+          ),
+          box(
+            title = "Heatmap",
+            status = "warning",
+            collapsible = T,
+            collapsed = T,
+            width = NULL,
+            tabBox(
+              width = NULL,
+              tabPanel(
+                "Plot",
+                d3heatmapOutput("need_heat")
+              ),
+              tabPanel(
+                "About",
+                p(
+                  "The visualization here is called a ",
+                  a(
+                    href = "https://en.wikipedia.org/wiki/Heat_map",
+                    "heatmap"
+                  ),
+                  ".  This one shows the most recent scores for each 
+                  client who has received a CAFAS/PECFAS assessment. Each client 
+                  is depicted as a row in the heatmap.  The values of the scores
+                  for each subscale have been ", 
+                  a(
+                    href = "https://stat.ethz.ch/R-manual/R-devel/library/base/html/scale.html",
+                    "normalized"
+                  ),
+                  " to allow for comparison.  Darker blue means a higher 
+                  score, while lighter blue means a lower score. You can 
+                  click and drag over cells to zoom in and look more 
+                  closely at a given set."),
+                p("Here you can look at broader patterns of need across life 
+                  domains for the current population of clients who have been 
+                  assessed.  The root-like shapes on the sides of the heatmap 
+                  are called", 
+                  a(
+                    href = "http://wheatoncollege.edu/lexomics/files/2012/08/How-to-Read-a-Dendrogram-Web-Ready.pdf",
+                    "dendrograms"
+                  ),
+                  "and they show how the different elements (here, clients and 
+                  subscales) are grouped.  The clusters clients whose 
+                  patterns of need are most distinct based on the CAFAS/PECFAS subscales 
+                  are shown in different colors. To allow you to more easily see these 
+                  groupings, the heatmap allows you to select a number of groups 
+                  (colors) to highlight for both the rows and columns."
                 )
               )
             )

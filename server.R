@@ -2,7 +2,7 @@
 
 shinyServer(
   function(input, output) {
-
+    
     # Make Reactive Datasets
     
     cafasInput <- reactive({  
@@ -169,7 +169,7 @@ shinyServer(
         if (input$radio_status == "Either") {c("Active","Inactive","Inferred Inactive")
         } else if (input$radio_status == "Inactive") { c("Inactive","Inferred Inactive")
         } else input$radio_status
-
+      
       outcome_df <- outcome_df()
       
       if (input$agency == "All") {
@@ -186,7 +186,7 @@ shinyServer(
       } else print(paste0("Error.  Unrecognized input."))
       
       # Aggregate data
-
+      
       outcome_df %>%
         filter(is.na(score_total_diff) == F) %>% # rm init assessments & episodes w/ 1 rating
         group_by(cmh) %>%
@@ -255,7 +255,7 @@ shinyServer(
         filter(n == 2)
       
       outcome_avg <-
-      outcome_df %>%
+        outcome_df %>%
         filter(fake_episode_id %in% has_2$fake_episode_id) %>%
         group_by(cmh,interval) %>%
         summarize(n = n(),
@@ -302,7 +302,7 @@ shinyServer(
                   Hours_HB_PerMo = sum(Hours_HB_PerMo, na.rm = T),
                   Hours_CM_PerMo = sum(Hours_CM_PerMo, na.rm = T),
                   Hours_Wrap_PerMo = sum(Hours_Wrap_PerMo, na.rm = T)
-                  ) %>%
+        ) %>%
         mutate(chg_score = last_score - init_score) %>%
         ungroup() %>%
         filter(los >= 0)
@@ -344,7 +344,7 @@ shinyServer(
         
         # If an individual agency is selected, build a model showing interaction 
         # of each other agency with the predictor
-
+        
         # dmyVars1 creates data frame with dummy variable for each level of cmh
         dmyVars <- data.frame(predict(dummyVars(" ~ cmh", data = df), newdata=df))
         
@@ -358,7 +358,7 @@ shinyServer(
           select(-contains(input$agency)) 
         
       } else print(paste0("Error.  Unrecognized input."))
-        
+      
     })
     
     model_op <- reactive({
@@ -373,7 +373,7 @@ shinyServer(
       if (input$agency == "All") {
         
         # Apply linear model for each CMH
-
+        
         m <- 
           model_df() %>% 
           group_by(cmh) %>% 
@@ -383,7 +383,7 @@ shinyServer(
         
         # Create linear model
         m <- 
-        model_df() %>%
+          model_df() %>%
           # Subset response, original predictor column and created dummy variables
           select(response,predictor,ends_with("_pred")) %>%
           lm(response ~ ., data = .)
@@ -472,12 +472,52 @@ shinyServer(
       
     })
     
+    clusterInput <- reactive({
+      
+      cluster_df <- 
+        cafasInput() %>% 
+        filter(is.na(fake_id) == FALSE) 
+      
+      # Filter based on selection
+      if (input$need_filt == "intake only") {
+        cluster_df <- 
+          cluster_df %>% # Remove empty randomized IDs
+          # Exclude discharge assessments, where assessment date is episode end date
+          filter(assess_date != episode_end) %>% 
+          ungroup() %>% droplevels()
+      } else if (input$need_filt == "all assessments") {
+        cluster_df <- cluster_df %>% ungroup() %>% droplevels()
+      } else paste0("Error: Unexpected input.")
+      
+      #  Make dataframe for use in cluster analyses
+      cluster_df %>%
+        select(starts_with("subscale_")) %>%
+        rename(school = subscale_school, 
+               home = subscale_home, 
+               community = subscale_community,
+               behavior = subscale_behavior, 
+               mood = subscale_mood, 
+               selfharm = subscale_selfharm, 
+               substance = subscale_substance,
+               thinking = subscale_thinking) %>%
+        mutate_each(funs( as.numeric(scale(.) ))) %>% 
+        filter(complete.cases(.))
+      
+    })
+    
+    cluster_km <- reactive({
+      
+      clusterInput() %>%
+        kmeans(centers = input$need_rows)
+      
+    })
+    
     ## Build Reactive UI Elements
     
     # Workaround for 'shinydashboard' weirdness, initialize an empty UI-chunk
     # so that uiOutput() can render in menuSubItem()
-      output$select_prog <- renderUI({})
-      outputOptions(output, "select_prog", suspendWhenHidden = FALSE)
+    output$select_prog <- renderUI({})
+    outputOptions(output, "select_prog", suspendWhenHidden = FALSE)
     
     output$select_prog <- renderUI({
       
@@ -493,11 +533,11 @@ shinyServer(
         selected = "All"
       )
     })
-
+    
     # Workaround for 'shinydashboard' weirdness, initialize an empty UI-chunk
     # so that uiOutput() can render in menuSubItem()
-      output$select_episode <- renderUI({})
-      outputOptions(output, "select_episode", suspendWhenHidden = FALSE)
+    output$select_episode <- renderUI({})
+    outputOptions(output, "select_episode", suspendWhenHidden = FALSE)
     
     output$select_episode <- renderUI({
       selectInput("select_episode",
@@ -508,8 +548,8 @@ shinyServer(
     
     # Workaround for 'shinydashboard' weirdness, initialize an empty UI-chunk
     # so that uiOutput() can render in menuSubItem()
-      output$select_version <- renderUI({})
-      outputOptions(output, "select_version", suspendWhenHidden = FALSE)
+    output$select_version <- renderUI({})
+    outputOptions(output, "select_version", suspendWhenHidden = FALSE)
     
     output$select_version <- renderUI({
       
@@ -574,7 +614,6 @@ shinyServer(
     })
     
     output$assess_num_again <- renderUI({
-      
       sliderInput(
         "assess_num_again", 
         "Select assessments by their order in an episode:", 
@@ -583,6 +622,26 @@ shinyServer(
         value = c(min(cafasInput()$assess_ord),
                   max(cafasInput()$assess_ord)),
         step = 1
+      )
+    })
+    
+    output$k_vars <- renderUI({
+      
+      # Create multiple dropdowns, each displaying a different colname
+      
+      tagList(
+        selectInput("kmPlot_x", "X-axis: ",
+                    choices = names(clusterInput()),
+                    selected = names(clusterInput())[1]),
+        selectInput("kmPlot_y", "Y-axis: ",
+                    choices = names(clusterInput()),
+                    selected = names(clusterInput())[2]),
+        selectInput("kmPlot_z", "Z-axis: ",
+                    choices = names(clusterInput()),
+                    selected = names(clusterInput())[3]),
+        selectInput("kmPlot_size", "Size: ",
+                    choices = names(clusterInput()),
+                    selected = names(clusterInput())[4])
       )
       
     })
@@ -625,7 +684,7 @@ shinyServer(
                               legend = list(xanchor = "right", yanchor = "top", x = 1, y = 1, 
                                             font = list(size = 10)),
                               margin = list(b = 100))  
-      })
+                   })
     })
     
     output$hist_fas <- renderPlotly({
@@ -635,6 +694,17 @@ shinyServer(
       } else if ( input$agency %in% levels(unique(scrub_fas$cmh)) ) {
         fas_filt <- cafasInput() %>% filter(cmh %in% input$agency)
       } else print(paste0("Error.  Unrecognized input."))
+      
+      # Filter discharge assessments based on selection
+      if (input$remove_dc == T) {
+        fas_filt <- 
+          fas_filt %>%
+          # For episodes with an end date, incl assessments not done on end date
+          # For episodes without an end date, incl assessments not marked as 'Exit'
+          filter(is.na(episode_end) == F & assess_date != episode_end
+                 | is.na(episode_end) == T & grepl("^Exit ",assess_type) == F) %>% 
+          ungroup() %>% droplevels()
+      } else fas_filt <- fas_filt
       
       fas_filt %>%
         filter(assess_ord >= input$assess_num[1]
@@ -763,7 +833,7 @@ shinyServer(
           max_hist <- max(hist(d$score_total)$counts,na.rm=TRUE)
           
           hist <-
-          d %>%
+            d %>%
             group_by(LOC) %>%
             plot_ly(x = ~score_total) %>%
             add_histogram(
@@ -774,20 +844,31 @@ shinyServer(
                             tolower(LOC), " following the assessment"),
               hoverinfo = "y+text"
             ) %>%
-            add_lines(
-              x = ~rep(round(mean(d$score_total), digits = 1), each = 2),
-              y = c(0,max_hist),
-              line = list(dash = 5),
-              color = I("black"),
-              name = "Mean score",
-              text = "Mean score",
-              hoverinfo = "x+text",
-              xaxis = "x",
-              showlegend = FALSE
-            ) %>%
             layout(
               title = "Distribution of Scores by Level of Care"
             )
+          
+          ifelse(
+            input$central == "Mean",
+            yes = hist <- hist %>% add_lines(x = ~rep(round(mean(d$score_total), digits = 1), each = 2),
+                                             y = c(0,max_hist),
+                                             line = list(dash = 5),
+                                             color = I("black"),
+                                             name = "Mean score",
+                                             text = "Mean score",
+                                             hoverinfo = "x+text",
+                                             xaxis = "x",
+                                             showlegend = FALSE),
+            no  = hist <- hist %>% add_lines(x = ~rep(round(median(d$score_total), digits = 1), each = 2),
+                                             y = c(0,max_hist),
+                                             line = list(dash = 5),
+                                             color = I("black"),
+                                             name = "Median score",
+                                             text = "Median score",
+                                             hoverinfo = "x+text",
+                                             xaxis = "x",
+                                             showlegend = FALSE)
+          )
           
           if(input$select_version == "CAFAS") {
             
@@ -846,77 +927,151 @@ shinyServer(
       
     })
     
-    output$hist_cmh <- renderPlotly({
+    output$by_cmh_dt <- renderDataTable({
       
-      one_plot <- function(d) {
-        
-        max_hist <- max(hist(d$score_total)$counts,na.rm=TRUE)
-        
-        plot_ly(d, x = ~score_total) %>%
-          add_histogram(
-            color = ~cmh,
-            colors = soft_12,
-            text = ~paste("youth"),
-            hoverinfo = "y+text") %>%
-          add_lines(
-            x = ~rep(round(mean(d$score_total), digits = 1), each = 2), 
-            y = c(0,max_hist),
-            line = list(dash = 5),
-            color = I("gray"),
-            name = "Mean score",
-            hoverinfo = "x",
-            xaxis = "x",
-            showlegend = FALSE
-          ) %>%
-          layout(
-            title = "Distribution of Scores by CMH"
-          )
-        
-      }
-      
-      # Note that this is not filtered by Agency, in order to allow for comparisons
-      
+      df <-
       cafasInput() %>%
-        filter(
-          assess_ord >= input$assess_num_again[1]
-          & assess_ord <= input$assess_num_again[2]) %>%
-        split(.$cmh) %>%
-        lapply(one_plot) %>% 
-        subplot(
-          nrows = 3, 
-          shareX = TRUE, 
-          titleX = FALSE) 
+        group_by(cmh) %>%
+        summarize(n = n(),
+                  med = median(score_total),
+                  mean = round(mean(score_total), digits = 1),
+                  sd = round(sd(score_total), digits = 1)) %>%
+        ungroup() %>%
+        arrange(desc(med))
+      
+      # Make datatable
+      df %>%
+        datatable(rownames = FALSE,
+                  caption = 'Summary of Total Scores by Agency',
+                  colnames = c('Agency','Number','Median','Avg','St. Dev.'),
+                  extensions = c('Responsive','Buttons'),
+                  options = list(dom = 't', buttons = c('colvis'),
+                                 pageLength = length(unique(df$cmh)))) %>%
+        #formatStyle(var_names, backgroundColor = styleInterval(brks, clrs)) %>%
+        formatStyle('med',
+                    background = styleColorBar(df$med, 'lightsteelblue'),
+                    backgroundSize = '100% 90%',
+                    backgroundRepeat = 'no-repeat',
+                    backgroundPosition = 'center')
       
     })
     
-    output$box_fas <- renderPlotly({
+    output$kw_isdiff <- renderText({
       
-      # Filter by selected agency
-      if (input$agency == "All") {
-        fas_filt <- cafasInput()
-      } else if ( input$agency %in% levels(unique(scrub_fas$cmh)) ) {
-        fas_filt <- cafasInput() %>% filter(cmh %in% input$agency)
-      } else print(paste0("Error.  Unrecognized input."))
+      # kruskal-wallis (test of medians)
+      pval <- kruskal.test(score_total ~ cmh, data = cafasInput())$p.value
       
-      p <-
-        fas_filt %>%
-        plot_ly(y = ~score_total, 
-                #color = I("black"), 
-                alpha = 0.2, boxpoints = "suspectedoutliers")
+      paste0("Analysis indicates that ",
+             ifelse(pval <= 0.05,
+                    yes = "the differences between some of the agencies' medians are statistically significant.",
+                    no = "there is not a significant difference between the agencies' medians."),
+             "  Expand the tab on the right for comparisons between each pair of agencies to see which ones are different."
+             )
+      
+    })
+    
+    output$by_cmh_kw <- renderPlotly({
+      
+      pairwise <- 
+        pairwise.wilcox.test(cafasInput()$score_total, 
+                             cafasInput()$cmh, 
+                             p.adjust.method = "bonferroni")$p.value %>% 
+        round(., digits = 5)
+      
+      pairwise %>%
+        t() %>%
+        plot_ly(
+          x = colnames(.), y = row.names(.), z = .
+        ) %>% 
+        add_heatmap(
+          colors = colorRamp(c("lightsteelblue", "white")),
+          name = "Agencies with Significant Differences"
+        ) %>%
+        colorbar(
+          title = "p-value",
+          limits = c(0, 0.00075758)
+        ) %>%
+        layout(
+          margin = list(l = 140, b = 120),
+          xaxis = list(title = "Agency", tickangle = 45),
+          yaxis = list(title = "Compared to...")
+        )
+      
+    })
+    
+    output$hist_box_cmh <- renderPlotly({
+      if ( input$By_CMH_display == "Facetted histogram" ){
+        one_plot <- function(d) {
+          
+          max_hist <- max(hist(d$score_total)$counts,na.rm=TRUE)
+          
+          plot_ly(d, x = ~score_total) %>%
+            add_histogram(
+              color = ~cmh,
+              colors = soft_12,
+              text = ~paste("youth",
+                            '</br>', cmh),
+              hoverinfo = "y+text") %>%
+            add_lines(
+              x = ~rep(round(mean(d$score_total), digits = 1), each = 2), 
+              y = c(0,max_hist),
+              line = list(dash = 5),
+              color = I("gray"),
+              name = "Mean score",
+              hoverinfo = "x",
+              xaxis = "x",
+              showlegend = FALSE
+            ) %>%
+            layout(
+              title = "Distribution of Scores by Agency"
+            )
+          
+        }
         
-      p1 <- p %>% add_boxplot(x = "Overall", color = I("gray80"))
-      p2 <- p %>% add_boxplot(x = ~cmh, color = ~cmh)
+        # Note that this is not filtered by Agency, in order to allow for comparisons
         
-      subplot(
-        p1, p2, shareY = TRUE,
-        widths = c(0.2, 0.8), margin = 0
-      ) %>% 
-        hide_legend() %>%
-        layout(xaxis = list(title = "", showticklabels = T),
-               yaxis = list(title = "Total Score", 
-                            range = c(0, 240)),
-               margin = list(b = 100))
+        cafasInput() %>%
+          filter(
+            assess_ord >= input$assess_num_again[1]
+            & assess_ord <= input$assess_num_again[2]) %>%
+          split(.$cmh) %>%
+          lapply(one_plot) %>% 
+          subplot(
+            nrows = 3, 
+            shareX = TRUE, 
+            titleX = FALSE) 
         
+      }else if ( input$By_CMH_display == "Boxplot" ) {
+        # Filter by selected agency
+        if (input$agency == "All") {
+          fas_filt <- cafasInput()%>%filter(assess_ord >= input$assess_num_again[1]
+                                            & assess_ord <= input$assess_num_again[2])
+        } else if ( input$agency %in% levels(unique(scrub_fas$cmh)) ) {
+          fas_filt <- cafasInput() %>% filter(cmh %in% input$agency
+                                              &assess_ord >= input$assess_num_again[1]
+                                              & assess_ord <= input$assess_num_again[2])
+        } else print(paste0("Error.  Unrecognized input."))
+        
+        p <-
+          fas_filt %>%
+          plot_ly(y = ~score_total, 
+                  #color = I("black"), 
+                  alpha = 0.2, boxpoints = "suspectedoutliers")
+        
+        p1 <- p %>% add_boxplot(x = "Overall", color = I("gray80"))
+        p2 <- p %>% add_boxplot(x = ~cmh, color = ~cmh)
+        
+        subplot(
+          p1, p2, shareY = TRUE,
+          widths = c(0.2, 0.8), margin = 0
+        ) %>% 
+          hide_legend() %>%
+          layout(xaxis = list(title = "", showticklabels = T),
+                 yaxis = list(title = "Total Score", 
+                              range = c(0, 240)),
+                 margin = list(b = 100))
+        
+      }else print(paste0("Error.  Unrecognized input."))
     })
     
     output$eligible_bar <- renderPlotly({
@@ -940,7 +1095,7 @@ shinyServer(
         fas_filt %>%
         filter(is.na(n_crit) == F
                & most_recent %in% recency
-               ) %>%
+        ) %>%
         mutate(interval = dplyr::recode(assess_type, 
                                         `Exit CAFAS` = "Discharge",
                                         `Exit PECFAS` = "Discharge",
@@ -1193,7 +1348,7 @@ shinyServer(
       } else print(paste0("Error.  Unrecognized input."))
       
       
-    })
+      })
     
     output$regress_dt <- renderDataTable({
       
@@ -1213,41 +1368,213 @@ shinyServer(
         
         names(coeff)[2:3] <- c("intercept","slope")
         
-        df_in <-
-          model_op_rev() %>% 
-          glance(fit) %>%
-          group_by(cmh) %>%
-          mutate_all(funs(round(.,digits = 3))) %>%
-          select(r.squared, p.value) %>%
-          left_join(coeff, by = "cmh") %>%
-          select(cmh,slope,intercept,r.squared,p.value) %>%
-          arrange(desc(slope))
+        if(length(input$regress_input) > 0){
+          df_in <-
+            model_op_rev() %>% 
+            glance(fit) %>%
+            group_by(cmh) %>%
+            mutate_all(funs(round(.,digits = 3))) %>%
+            #select(r.squared, p.value) %>%
+            #select(contains(input$regress_input)) %>%
+            left_join(coeff, by = "cmh")%>%
+            select(cmh, slope, one_of(input$regress_input)) %>%
+            arrange(desc(slope))
+        } else {
+          df_in <-
+            model_op_rev() %>% 
+            glance(fit) %>%
+            group_by(cmh) %>%
+            mutate_all(funs(round(.,digits = 3))) %>%
+            #select(r.squared, p.value) %>%
+            #select(contains(input$regress_input)) %>%
+            left_join(coeff, by = "cmh")%>%
+            select(cmh, slope) %>%
+            arrange(desc(slope))
+        }
         
-        df_in %>%
-          datatable(caption = paste0("Relationship of ", input$predictor,
-                                     " to ", input$response),
-                    rownames = FALSE,
-                    colnames = c('CMH',
-                                 'Slope',
-                                 'Intercept',
-                                 'Good fit?',
-                                 'Significance'),
-                    extensions = c('Responsive','Buttons'),
-                    options = list(pageLength = nlevels(scrub_fas$cmh),
-                                   dom = 't',
-                                   buttons = c('colvis'))) %>%
-          formatStyle('slope',
-                      background = styleColorBar(df_in$slope, 'lightpink'),
-                      backgroundSize = '100% 90%',
-                      backgroundRepeat = 'no-repeat',
-                      backgroundPosition = 'center') %>%
-          formatStyle('r.squared',
-                      background = styleColorBar(df_in$r.squared, 'lightgray'),
-                      backgroundSize = '100% 90%',
-                      backgroundRepeat = 'no-repeat',
-                      backgroundPosition = 'center') %>%
-          formatStyle('p.value',
-                      color = styleInterval(c(0.01, 0.05), c('green', 'black', 'red')))
+        
+        if('intercept' %in% input$regress_input){
+          if('p.value' %in% input$regress_input){
+            if('r.squared' %in% input$regress_input){
+              df_in %>%
+                datatable(caption = paste0("Relationship of ", input$predictor,
+                                           " to ", input$response),
+                          rownames = FALSE,
+                          colnames = c('CMH',
+                                       'Slope',
+                                       'Intercept',
+                                       'Good fit?',
+                                       'Significance'),
+                          extensions = c('Responsive','Buttons'),
+                          options = list(pageLength = nlevels(scrub_fas$cmh),
+                                         dom = 't',
+                                         buttons = c('colvis'))) %>%
+                formatStyle('slope',
+                            background = styleColorBar(df_in$slope, 'lightpink'),
+                            backgroundSize = '100% 90%',
+                            backgroundRepeat = 'no-repeat',
+                            backgroundPosition = 'center') %>%
+                formatStyle('p.value',
+                            color = styleInterval(c(0.01, 0.05), c('green', 'black', 'red'))) %>%
+                formatStyle('r.squared',
+                            background = styleColorBar(df_in$r.squared, 'lightgray'),
+                            backgroundSize = '100% 90%',
+                            backgroundRepeat = 'no-repeat',
+                            backgroundPosition = 'center')
+            } else {
+              df_in %>%
+                datatable(caption = paste0("Relationship of ", input$predictor,
+                                           " to ", input$response),
+                          rownames = FALSE,
+                          colnames = c('CMH',
+                                       'Slope',
+                                       'Intercept',
+                                       'Significance'),
+                          extensions = c('Responsive','Buttons'),
+                          options = list(pageLength = nlevels(scrub_fas$cmh),
+                                         dom = 't',
+                                         buttons = c('colvis'))) %>%
+                formatStyle('slope',
+                            background = styleColorBar(df_in$slope, 'lightpink'),
+                            backgroundSize = '100% 90%',
+                            backgroundRepeat = 'no-repeat',
+                            backgroundPosition = 'center') %>%
+                formatStyle('p.value',
+                            color = styleInterval(c(0.01, 0.05), c('green', 'black', 'red')))
+            }
+          } else {
+            if('r.squared' %in% input$regress_input){
+              df_in %>%
+                datatable(caption = paste0("Relationship of ", input$predictor,
+                                           " to ", input$response),
+                          rownames = FALSE,
+                          colnames = c('CMH',
+                                       'Slope',
+                                       'Intercept',
+                                       'Good fit?'),
+                          extensions = c('Responsive','Buttons'),
+                          options = list(pageLength = nlevels(scrub_fas$cmh),
+                                         dom = 't',
+                                         buttons = c('colvis'))) %>%
+                formatStyle('slope',
+                            background = styleColorBar(df_in$slope, 'lightpink'),
+                            backgroundSize = '100% 90%',
+                            backgroundRepeat = 'no-repeat',
+                            backgroundPosition = 'center') %>%
+                formatStyle('r.squared',
+                            background = styleColorBar(df_in$r.squared, 'lightgray'),
+                            backgroundSize = '100% 90%',
+                            backgroundRepeat = 'no-repeat',
+                            backgroundPosition = 'center')
+            } else {
+              df_in %>%
+                datatable(caption = paste0("Relationship of ", input$predictor,
+                                           " to ", input$response),
+                          rownames = FALSE,
+                          colnames = c('CMH',
+                                       'Slope',
+                                       'Intercept'),
+                          extensions = c('Responsive','Buttons'),
+                          options = list(pageLength = nlevels(scrub_fas$cmh),
+                                         dom = 't',
+                                         buttons = c('colvis'))) %>%
+                formatStyle('slope',
+                            background = styleColorBar(df_in$slope, 'lightpink'),
+                            backgroundSize = '100% 90%',
+                            backgroundRepeat = 'no-repeat',
+                            backgroundPosition = 'center')
+            }
+          }
+        }else{
+          if('p.value' %in% input$regress_input){
+            if('r.squared' %in% input$regress_input){
+              df_in %>%
+                datatable(caption = paste0("Relationship of ", input$predictor,
+                                           " to ", input$response),
+                          rownames = FALSE,
+                          colnames = c('CMH',
+                                       'Slope',
+                                       'Good fit?',
+                                       'Significance'),
+                          extensions = c('Responsive','Buttons'),
+                          options = list(pageLength = nlevels(scrub_fas$cmh),
+                                         dom = 't',
+                                         buttons = c('colvis'))) %>%
+                formatStyle('slope',
+                            background = styleColorBar(df_in$slope, 'lightpink'),
+                            backgroundSize = '100% 90%',
+                            backgroundRepeat = 'no-repeat',
+                            backgroundPosition = 'center') %>%
+                formatStyle('p.value',
+                            color = styleInterval(c(0.01, 0.05), c('green', 'black', 'red'))) %>%
+                formatStyle('r.squared',
+                            background = styleColorBar(df_in$r.squared, 'lightgray'),
+                            backgroundSize = '100% 90%',
+                            backgroundRepeat = 'no-repeat',
+                            backgroundPosition = 'center')
+            } else {
+              df_in %>%
+                datatable(caption = paste0("Relationship of ", input$predictor,
+                                           " to ", input$response),
+                          rownames = FALSE,
+                          colnames = c('CMH',
+                                       'Slope',
+                                       'Significance'),
+                          extensions = c('Responsive','Buttons'),
+                          options = list(pageLength = nlevels(scrub_fas$cmh),
+                                         dom = 't',
+                                         buttons = c('colvis'))) %>%
+                formatStyle('slope',
+                            background = styleColorBar(df_in$slope, 'lightpink'),
+                            backgroundSize = '100% 90%',
+                            backgroundRepeat = 'no-repeat',
+                            backgroundPosition = 'center') %>%
+                formatStyle('p.value',
+                            color = styleInterval(c(0.01, 0.05), c('green', 'black', 'red')))
+            }
+          } else {
+            if('r.squared' %in% input$regress_input){
+              df_in %>%
+                datatable(caption = paste0("Relationship of ", input$predictor,
+                                           " to ", input$response),
+                          rownames = FALSE,
+                          colnames = c('CMH',
+                                       'Slope',
+                                       'Good fit?'),
+                          extensions = c('Responsive','Buttons'),
+                          options = list(pageLength = nlevels(scrub_fas$cmh),
+                                         dom = 't',
+                                         buttons = c('colvis'))) %>%
+                formatStyle('slope',
+                            background = styleColorBar(df_in$slope, 'lightpink'),
+                            backgroundSize = '100% 90%',
+                            backgroundRepeat = 'no-repeat',
+                            backgroundPosition = 'center') %>%
+                formatStyle('r.squared',
+                            background = styleColorBar(df_in$r.squared, 'lightgray'),
+                            backgroundSize = '100% 90%',
+                            backgroundRepeat = 'no-repeat',
+                            backgroundPosition = 'center')
+            } else {
+              df_in %>%
+                datatable(caption = paste0("Relationship of ", input$predictor,
+                                           " to ", input$response),
+                          rownames = FALSE,
+                          colnames = c('CMH',
+                                       'Slope'),
+                          extensions = c('Responsive','Buttons'),
+                          options = list(pageLength = nlevels(scrub_fas$cmh),
+                                         dom = 't',
+                                         buttons = c('colvis'))) %>%
+                formatStyle('slope',
+                            background = styleColorBar(df_in$slope, 'lightpink'),
+                            backgroundSize = '100% 90%',
+                            backgroundRepeat = 'no-repeat',
+                            backgroundPosition = 'center')
+            }
+          }
+        }
+        
         
       } else if (input$agency %in% levels(unique(scrub_fas$cmh))) {
         
@@ -1282,7 +1609,7 @@ shinyServer(
                       color = styleInterval(c(0.01, 0.05), c('green', 'black', 'red')))
         
       } else print(paste0("Error.  Unrecognized input."))
-
+      
     })
     
     output$regress <- renderPlotly({
@@ -1418,7 +1745,7 @@ shinyServer(
       } else print(paste0("Error.  Unrecognized input."))
       
       viz <-
-      viz %>%
+        viz %>%
         layout(
           #title = notetxt, 
           xaxis = list(title = input$predictor,
@@ -1464,37 +1791,152 @@ shinyServer(
       
     })
     
-    output$heatmap <- renderD3heatmap({
+    output$need_scree <- renderPlotly({
       
-      # Filter by selected agency
-      if (input$agency == "All") {
-        fas_filt <- cafasInput()
-      } else if ( input$agency %in% levels(unique(scrub_fas$cmh)) ) {
-        fas_filt <- cafasInput() %>% filter(cmh %in% input$agency)
+      scree <- function(df) {
+        wss <- (nrow(df)-1)*sum(apply(df,2,var))
+        for (i in 2:15) wss[i] <- sum(kmeans(df,centers=i)$withinss)
+        wss %<>% as.data.frame() 
+        names(wss)[1] <- "wss"
+        wss %<>% mutate(n_clust = row_number())
+        return(wss)
+      }
+      
+      clusterInput() %>%
+        scree() %>%
+        plot_ly(x = ~n_clust, y = ~wss, height = 200) %>%
+        add_lines(alpha = 0.5) %>%
+        add_markers(name = "Clusters",
+                    hoverinfo = "x") %>%
+        layout(xaxis = list(title = "Number of clusters"),
+               yaxis = list(title = "Within groups <br>sum of squares")) %>%
+        hide_legend()
+      
+    })
+    
+    output$need_grp_dt <- DT::renderDataTable({
+      
+      if (input$dt_clust_type == "k-means clusters") {
+        
+        tidy_grp <- 
+          cluster_km() %>% 
+          tidy() %>%
+          select(cluster,size,everything(),-withinss) %>%
+          mutate_each(funs = funs(round(.,digits = 3)),
+                      starts_with("x"))
+        
+        # Define color interval breaks
+        brks <- tidy_grp %>% select(starts_with("x")) %>% 
+          quantile(probs = seq(.05, .95, .05), na.rm = TRUE)
+        
+        clrs <- round(seq(255, 40, length.out = length(brks) + 1), 0) %>%
+        {paste0("rgb(255,", ., ",", ., ")")}  
+        
+        # Select var names to apply color gradient
+        var_names <- tidy_grp %>% select(starts_with("x")) %>% colnames()
+        
+      } else if (input$dt_clust_type == "hierarchical clusters") {
+        
+        # Use default dist and hclust methodds to match d3heatmap output
+        distances <- dist(clusterInput(), method = "euclidean")
+        hc <- hclust(distances, method = "complete")
+        cluster <- cutree(hc, k = input$need_rows)
+        
+        n_obs <-
+          clusterInput() %>%
+          cbind(cluster) %>%
+          mutate(cluster = as.factor(cluster)) %>%
+          group_by(cluster) %>%
+          summarize(size = n()) 
+        
+        tidy_grp <-
+          clusterInput() %>%
+          cbind(cluster) %>%
+          mutate(cluster = as.factor(cluster)) %>%
+          group_by(cluster) %>%
+          summarize_at(vars(school:thinking), mean) %>%
+          left_join(n_obs, by = "cluster") %>%
+          select(cluster,size,everything()) %>%
+          mutate_each(funs = funs(round(.,digits = 3)),
+                      school:thinking)
+        
+        # Define color interval breaks
+        brks <- tidy_grp %>% select(school:thinking) %>% as.matrix() %>%
+          quantile(probs = seq(.05, .95, .05), na.rm = TRUE)
+        
+        clrs <- round(seq(255, 40, length.out = length(brks) + 1), 0) %>%
+        {paste0("rgb(255,", ., ",", ., ")")}  
+        
+        # Select var names to apply color gradient
+        var_names <- tidy_grp %>% select(school:thinking) %>% colnames()
+        
       } else print(paste0("Error.  Unrecognized input."))
+      
+      
+      # Make datatable
+      tidy_grp %>%
+        datatable(rownames = FALSE,
+                  colnames = c('Cluster','People',colnames(cluster_km()$centers)),
+                  extensions = c('Responsive','Buttons'),
+                  options = list(dom = 't', buttons = c('colvis'))) %>%
+        # Doesn't currently match levels of palette applied to need_km output
+        # formatStyle('cluster', 
+        #             backgroundColor = styleEqual(unique(tidy_k$cluster),
+        #                                          soft_12[1:length(cluster_km()$centers[,1])])) %>%
+        formatStyle(var_names, backgroundColor = styleInterval(brks, clrs)) %>%
+        formatStyle('size',
+                    background = styleColorBar(tidy_grp$size, 'gray'),
+                    backgroundSize = '100% 90%',
+                    backgroundRepeat = 'no-repeat',
+                    backgroundPosition = 'center')
+      
+    })
+    
+    output$need_km <- renderPlotly({
+      
+      df <-
+        cluster_km() %>% 
+        augment(clusterInput()) 
+      
+      # Rename cols based on inputs
+      df$xvar <- df[ ,which( colnames(df) == input$kmPlot_x )]
+      df$yvar <- df[ ,which( colnames(df) == input$kmPlot_y )]
+      df$zvar <- df[ ,which( colnames(df) == input$kmPlot_z )]
+      df$sizevar <- df[ ,which( colnames(df) == input$kmPlot_size )]
+      
+      df %>%
+        group_by(.cluster) %>%
+        plot_ly(x = ~xvar, 
+                y = ~yvar, 
+                z = ~zvar,
+                p = ~sizevar,
+                hoverinfo = 'text',
+                text = ~paste(input$kmPlot_x, '(x): ', round(xvar, digits = 2),
+                              '</br>', input$kmPlot_y, '(y): ', round(yvar, digits = 2),
+                              '</br>', input$kmPlot_z, '(z): ', round(zvar, digits = 2),
+                              '</br>', input$kmPlot_size, '(size): ', round(sizevar, digits = 2)),
+                color = ~.cluster,
+                colors = soft_12) %>%
+        add_markers(size = ~sizevar, 
+                    sizes = c(10, 500)) %>%
+        layout(scene = list(xaxis = list(title = input$kmPlot_x), 
+                            yaxis = list(title = input$kmPlot_y), 
+                            zaxis = list(title = input$kmPlot_z)))
+      
+    })
+    
+    output$need_heat <- renderD3heatmap({
       
       withProgress(message = 'Creating heatmap...',
                    detail = 'Clustering can take awhile...',
                    value = 0.1, 
-                   {fas_filt %>%
-                       filter(assess_ord == 1) %>%
-                       select(subscale_school:subscale_thinking) %>%
-                       rename(school = subscale_school, 
-                              home = subscale_home, 
-                              community = subscale_community,
-                              behavior = subscale_behavior, 
-                              mood = subscale_mood, 
-                              selfharm = subscale_selfharm, 
-                              substance = subscale_substance,
-                              thinking = subscale_thinking) %>%
-                       filter(complete.cases(.)) %>%
-                       scale() %>%
-                       d3heatmap(colors = "Blues",
-                                 dendrogram = "row",
-                                 k_row = input$need_rows, 
-                                 theme = "",
-                                 yaxis_font_size =  "0pt",
-                                 show_grid = F)
+                   {d3heatmap(clusterInput(), 
+                              colors = "Blues",
+                              dendrogram = "row",
+                              k_row = input$need_rows, 
+                              theme = "",
+                              yaxis_font_size =  "0pt",
+                              show_grid = F)
                    })
       
     })
@@ -1547,5 +1989,5 @@ shinyServer(
       
     })
     
-  }
-)
+    }
+    )

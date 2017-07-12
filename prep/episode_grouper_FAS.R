@@ -118,31 +118,24 @@ grp_fas <-
          rev_episode_end = ifelse(is.na(current_episode) == T,current_episode,rev_episode_end),
          rev_episode_end = as.Date(rev_episode_end, origin = "1970-01-01")) %>%
   select(-last,-current_episode, -episodes_per_kid,-start_dt,-revised,-since) %>%
-  ungroup() 
+  ungroup() %>%
+  group_by(id,cmh,rev_episode_num) %>%
+  mutate(rev_assess_ord = cumsum(i))
 
-
+grp_fas$rev_episode_id <- paste0(grp_fas$id,"_",grp_fas$cmh,"_",grp_fas$rev_episode_num)
 
 grp_fas <-
   grp_fas %>%
-  group_by(id,cmh,rev_episode_num) %>%
   # Order assessment sequence by new episode groups
-  mutate(rev_assess_ord = cumsum(i),
-         rev_episode_id = paste0(id,"_",cmh,"_",rev_episode_num),
-         rev_episode_length = ifelse(is.na(rev_episode_end) == TRUE,
-                                     yes = round(as.numeric(difftime(today(),
-                                                                     as.Date(rev_episode_start),
-                                                                     units = "days")),
-                                                 digits = 0),
-                                     no = round(as.numeric(difftime(as.Date(rev_episode_end),
-                                                                    as.Date(rev_episode_start),
-                                                                    units = "days")),
-                                                digits = 0)),
-         rev_episode_since = round(as.numeric(difftime(assess_date,
-                                                       lag(assess_date),
-                                                       units = "days")),
-                                   digits = 0),
-         rev_episode_since = recode(rev_episode_since, "NA = 0"),
-         rev_episode_elapsed = cumsum(rev_episode_since)) %>%
+  mutate(#rev_episode_id = paste0(id,"_",cmh,"_",rev_episode_num),
+    rev_episode_length = ifelse(
+      is.na(rev_episode_end) == TRUE,
+      yes = round(as.numeric(difftime(today(),as.Date(rev_episode_start),units = "days")),digits = 0),
+      no = round(as.numeric(difftime(as.Date(rev_episode_end),as.Date(rev_episode_start),units = "days")),digits = 0)),
+    rev_episode_since = round(
+      as.numeric(difftime(assess_date,lag(assess_date),units = "days")),digits = 0),
+    rev_episode_since = recode(rev_episode_since, "NA = 0"),
+    rev_episode_elapsed = cumsum(rev_episode_since)) %>%
   select(-i,-ord) %>%
   # Arrange column order logically
   select(id,client_status,cmh,service_area,program_name,version,
@@ -150,7 +143,8 @@ grp_fas <-
          unique_episode_id,episode_num,episode_start,episode_end,assess_ord,
          episode_elapsed,episode_length,
          # Revised episode vars
-         rev_episode_id,rev_episode_num,rev_episode_start,rev_episode_end,rev_assess_ord,
+         rev_episode_id,
+         rev_episode_num,rev_episode_start,rev_episode_end,rev_assess_ord,
          rev_episode_elapsed,rev_episode_length,
          # Assessment vars
          assessmentID,assess_type,assess_period,assess_date,assessor,assess_status,most_recent,
@@ -160,3 +154,4 @@ grp_fas <-
          tier:n_crit) %>%
   ungroup() %>% droplevels()
   
+

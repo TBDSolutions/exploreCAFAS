@@ -38,13 +38,17 @@ library(car)
     rev_fas_episode_key$rev_fake_episode_id <- as.character(rev_fas_episode_key$rev_fake_episode_id)
     rm(rev_episode_id)  
     
+  # Combine keys in list
+    keys <- list(fas_key = fas_key,fas_episode_key = fas_episode_key,rev_fas_episode_key = rev_fas_episode_key)
+    rm(fas_key);rm(fas_episode_key);rm(rev_fas_episode_key)
+    
   # Make PHI-free dataset
     scrub_fas <-
       grp_fas %>%
       mutate(id = as.character(id)) %>%
-      left_join(fas_key, by = "id") %>%
-      left_join(fas_episode_key, by = "unique_episode_id") %>%
-      left_join(rev_fas_episode_key, by = "rev_episode_id") %>%   
+      left_join(keys$fas_key, by = "id") %>%
+      left_join(keys$fas_episode_key, by = "unique_episode_id") %>%
+      left_join(keys$rev_fas_episode_key, by = "rev_episode_id") %>%   
       select(-id,-unique_episode_id,-assessmentID,-rev_episode_id,
              -assess_age,-gender,-age_range) %>%
       mutate(fake_id = as.factor(fake_id),
@@ -65,5 +69,6 @@ library(car)
              tier:n_crit,
              # Everything else from local vars
              everything())
-    
+
 write.csv(scrub_fas,"data/scrub_fas.csv", row.names = F)
+

@@ -40,17 +40,14 @@ grp_fas <-
   # Calc values based on default episode groupings
   group_by(id,episode_num) %>%
   arrange(assess_date) %>%
-  mutate(assess_ord = as.integer(row_number(assess_date)),
-         episode_length = ifelse(is.na(episode_end) == TRUE,
-                                 yes = round(as.numeric(difftime(today(),
-                                                                 as.Date(episode_start),
-                                                                 units = "days")),
-                                             digits = 0),
-                                 no = round(as.numeric(difftime(as.Date(episode_end),
-                                                                as.Date(episode_start),
-                                                                units = "days")),
-                                            digits = 0))
-         ) %>%
+  mutate(
+    assess_ord = as.integer(row_number(assess_date)),
+    episode_length = ifelse(
+      is.na(episode_end) == TRUE,
+      yes = round(as.numeric(difftime(today(),as.Date(episode_start),units = "days")),digits = 0),
+      no = round(as.numeric(difftime(as.Date(episode_end),as.Date(episode_start),units = "days")),digits = 0)
+    )
+  ) %>%
   # Use init CAFAS date as start date (as opposed to episode start) 
   # Group by id and cmh.  Using this definition, an episode never bridges multiple 
   # organizations, but may bridge service areas or programs within an org.
@@ -121,7 +118,12 @@ grp_fas <-
          rev_episode_end = ifelse(is.na(current_episode) == T,current_episode,rev_episode_end),
          rev_episode_end = as.Date(rev_episode_end, origin = "1970-01-01")) %>%
   select(-last,-current_episode, -episodes_per_kid,-start_dt,-revised,-since) %>%
-  ungroup() %>%
+  ungroup() 
+
+
+
+grp_fas <-
+  grp_fas %>%
   group_by(id,cmh,rev_episode_num) %>%
   # Order assessment sequence by new episode groups
   mutate(rev_assess_ord = cumsum(i),

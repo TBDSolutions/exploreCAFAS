@@ -33,6 +33,7 @@
 # CAFAS has a max score of 240.
 
 library(dplyr); library(magrittr); library(tidyr); library(car)
+library(lubridate)
 
 grp_fas <-
   sub_fas %>%

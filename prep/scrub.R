@@ -1,9 +1,7 @@
 
 #### Aggregate data to allow presentation in open app
 
-library(dplyr)
-library(tidyr)
-library(car)
+library(dplyr); library(tidyr); library(feather)
 
 # Define dataset without PHI to use with Shiny Apps 
 # Assumes that the episode grouper has already been run
@@ -70,5 +68,5 @@ library(car)
              # Everything else from local vars
              everything())
 
-write.csv(scrub_fas,"data/scrub_fas.csv", row.names = F)
+write_feather(scrub_fas,"data/scrub_fas.feather")
 

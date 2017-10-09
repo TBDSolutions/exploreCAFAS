@@ -20,9 +20,11 @@ library(dygraphs)
 library(parsetR)
 library(d3heatmap)
 library(RColorBrewer)
+library(feather)
 
 # Load de-identified data
-scrub_fas <- read.csv("data/scrub_fas.csv")
+scrub_fas <- read_feather("data/scrub_fas.feather")
+scrub_fas$LOC <- as.factor(scrub_fas$LOC)
 
 # Calculate most recent assessment date per fake_id
 # to allow filtering of data based of clients whose most recent assessment
@@ -37,6 +39,14 @@ scrub_fas %<>%
   group_by(fake_id) %>%
   mutate(max_date = max(assess_date)) %>%
   ungroup() %>% droplevels()
+
+# Recode CMHSP names
+scrub_fas %<>%
+  mutate(cmh = fct_recode(cmh,
+                          GIHN = "GCCMH",
+                          MCN = "MCCMH",
+                          `The Right Door` = "ICCMH")
+  )
 
 # Add custom color palettes
 

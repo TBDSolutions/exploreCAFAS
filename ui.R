@@ -17,7 +17,7 @@ dashboardPage(skin = "yellow",
         icon = icon("sun-o")
       ),
       menuItem(
-        "Eligibility", 
+        "Eligibility",
         tabName = "eligible", 
         icon = icon("sign-in")
       ),
@@ -54,6 +54,16 @@ dashboardPage(skin = "yellow",
             label = "Treatment Status:",
             choices = c("Active", "Inactive", "Either"), 
             selected = "Either",
+            inline = T
+          )
+        ),
+        menuSubItem(
+          icon = NULL,
+          radioButtons(
+            "radio_type",
+            label = "Assessment Type:",
+            choices = c("Initial", "All"),
+            selected = "All",
             inline = T
           )
         ),
@@ -121,42 +131,85 @@ dashboardPage(skin = "yellow",
                     collapsible = TRUE,
                     collapsed = F,
                     width = NULL,
-                    checkboxInput(
-                      "remove_dc", 
-                      "Remove discharge assessments? ", 
-                      value = TRUE, 
-                      width = NULL
+                    inputPanel(
+                      checkboxInput(
+                        "remove_dc", 
+                        "Remove discharge assessments? ", 
+                        value = TRUE, 
+                        width = NULL
+                      ),
+                      checkboxInput(
+                        "rm_data_issues1",
+                        "Remove potential data issues",
+                        value = TRUE,
+                        width = NULL
+                      ),
+                      checkboxInput(
+                        "most_recent", 
+                        "Only most recent assessment per child? ", 
+                        value = F, 
+                        width = NULL
+                      ),
+                      radioButtons(
+                        "split",
+                        label = "Display:",
+                        choices = c("Stacked", "Facetted"), 
+                        selected = "Facetted",
+                        inline = T
+                      ),
+                      radioButtons(
+                        "central",
+                        label = "Summarize:",
+                        choices = c("Mean", "Median"), 
+                        selected = "Mean",
+                        inline = T
+                      ),
+                      sliderInput(
+                        "sni_bins", 
+                        "Number of bins:", 
+                        min = 1, 
+                        max = 30, 
+                        value = 24
+                      ),
+                      uiOutput("assess_num"),
+                      em(
+                        "Use this slider if you want to see the distribution of scores 
+                        at the beginning, middle, or end of treatment.  E.g. Selecting 
+                        1 indicates assessments which are first in an episode."
+                      ),
+                      uiOutput("days_between"),
+                      em(
+                        "How many days are in the period between assessments during 
+                        which these services were received?  A smaller interval may not  
+                        allow for a representative view of the array and amount of 
+                        services received by an individual."
+                      )
                     ),
-                    em(
-                      "By default, the final assessment of an episode is 
-                      excluded as it is expected that the child has lower needs 
-                      than their current level of care at this point in treatment."
-                    ),
-                    br(),
-                    radioButtons(
-                      "split",
-                      label = "Display:",
-                      choices = c("Stacked", "Facetted"), 
-                      selected = "Stacked",
-                      inline = T
-                    ),
-                    radioButtons(
-                      "central",
-                      label = "Summarize:",
-                      choices = c("Mean", "Median"), 
-                      selected = "Mean",
-                      inline = T
-                    ),
-                    sliderInput(
-                      "sni_bins", 
-                      "Number of bins:", 
-                      min = 1, 
-                      max = 30, 
-                      value = 24
-                    ),
-                    uiOutput("assess_num"),
-                    em("Use this slider if you want to see the distribution of 
-                       scores at the beginning, middle, or end of treatment.")
+                    p(
+                      strong("Notes:"),
+                      tags$ul(
+                        tags$li(
+                          "By default, the final assessment of an episode is excluded 
+                          as it is expected that the child has lower needs than their 
+                          current level of care at this point in treatment."
+                        ),
+                        tags$li(
+                          "By default, assessments are excluded if there are potential 
+                          data issues. These include the absence of any claims data 
+                          attached to the youth's Medicaid ID or the absence of a viable 
+                          Medicaid ID in the ID crosswalk table."
+                        ),
+                        tags$li(
+                          "By default, all assessments are included in order to give 
+                          a sense of global practice in providing levels of care.  
+                          Users can choose to only include the most recent assessment 
+                          for each individual.  Note that in this filter is applied 
+                          before the removal of discharges, so that if both boxes are 
+                          selected, episodes where the final assessment is a discharge 
+                          assessment will be excluded entirely."
+                        )
+                      )
+                    )
                   ),
                   box(
                     title = "Considerations", 
@@ -208,6 +261,21 @@ dashboardPage(skin = "yellow",
                     column(
                       width = 6,
                       box(
+                        title = "Plots", 
+                        color = "black",
+                        collapsible = TRUE,
+                        collapsed = F,
+                        width = NULL,
+                        plotlyOutput("hist_box_cmh"),
+                        radioButtons(
+                          "By_CMH_display",
+                          label = "Compare CMHs using:",
+                          choices = c("Facetted histogram", "Boxplot"), 
+                          selected = "Facetted histogram",
+                          inline = T
+                        )
+                      ),
+                      box(
                         title = "Are they different?", 
                         color = "black",
                         collapsible = TRUE,
@@ -244,82 +312,69 @@ dashboardPage(skin = "yellow",
                         )
                       ),
                       box(
-                        title = "Plots", 
+                        title = "Settings", 
                         color = "black",
-                        collapsible = TRUE,
+                        collapsible = T,
                         collapsed = F,
                         width = NULL,
-                        plotlyOutput("hist_box_cmh"),
-                        box(
-                          title = "Settings", 
-                          color = "black",
-                          collapsible = TRUE,
-                          collapsed = F,
-                          width = NULL,
-                          radioButtons(
-                            "By_CMH_display",
-                            label = "Display:",
-                            choices = c("Facetted histogram", "Boxplot"), 
-                            selected = "Facetted histogram",
-                            inline = T
-                          ),
-                          uiOutput("assess_num_again"),
-                          em(
-                            "Use this slider if you want to see the distribution 
-                            of scores at the beginning, middle, or end of treatment."
-                          )
-                        )
+                        uiOutput("assess_num_again"),
+                        em(
+                          "Use this slider if you want to see the distribution 
+                          of scores at the beginning, middle, or end of treatment."
+                        ),
+                        uiOutput("days_between_again"),
+                        em("Use this slider to filter out assessments based on the
+                       number of days between consecutive assessments.")
                       )
                     )
                   )
                 ),
                 tabPanel(
-                  "Relating Services to Needs",
+                  "Do Needs Predict Use?",
                   fluidRow(
                     column(
                       width = 4, 
                       box(
-                        title = "Settings", 
+                        title = "Select variables", 
                         color = "black",
                         collapsible = TRUE,
                         collapsed = F,
                         width = NULL,
+                        p(
+                          "During an episode, is there a relationship 
+                          between a child's level of need and the resources 
+                          they receive?"
+                        ),
                         selectInput(
                           "predictor",
-                          label = "Predictor variable (x-axis):",
-                          choices = c("Length of episode",
-                                      "Total hours of service per month",
-                                      "Hours of home-based services per month",
-                                      "Hours of case management per month",
-                                      "Hours of wraparound services per month"),
-                          selected = "Length of episode"
-                        ),
-                        em("Since service data are only available since 10/1/2014,
-                           selecting service use variables will result in 
-                           assessments prior to that date being filtered out."),
-                        br(),
-                        selectInput(
-                          "response",
-                          label = "Response variable (Y-axis):",
+                          label = "Level of need (Predictor):",
                           choices = c("Initial CAFAS Score in Episode",
+                                      "Highest of Initial 3 Scores in Episode",
                                       "Average CAFAS Score during Episode", 
                                       "Highest CAFAS Score during Episode", 
                                       "Change in CAFAS Score during Episode"),
-                          selected = "Initial CAFAS Score in Episode"
+                          selected = "Highest of Initial 3 Scores in Episode"
                         ),
                         selectInput(
-                          "regress_input",
-                          label = "Display selected input:",
-                          choices = c("Intercept" = "intercept",
-                                      "Good fit?" = "r.squared",
-                                      "Significance" = "p.value"),
-                          selected = c("Intercept","Significance"),
-                          multiple = T
+                          "response",
+                          label = "Resources received (Response):",
+                          choices = c("Length of episode",
+                                      "Estimated cost of episode",
+                                      "Estimated monthly cost",
+                                      "Estimated hours of service",
+                                      "Estimated hours of service per month"),
+                          selected = "Length of episode"
                         ),
                         checkboxInput(
                           "remove_out", 
                           "Remove outliers? ", 
                           value = TRUE, 
+                          width = NULL
+                        ),
+                        checkboxInput(
+                          "rm_data_issues2",
+                          "Remove potential data issues",
+                          value = TRUE,
                           width = NULL
                         )
                       ),
@@ -347,72 +402,137 @@ dashboardPage(skin = "yellow",
                         p(
                           strong("Significance: "),
                           uiOutput("def_pval")
+                        ),
+                        p(
+                          strong("Outliers: "),
+                          "Outliers are identified using ", 
+                          a(href = "https://en.wikipedia.org/wiki/Cook's_distance",
+                            "Cook's distance"), 
+                          ", which looks at each observation and summarizes how 
+                          much the values in the regression model change when 
+                          that observation is removed. We flag as an outlier 
+                          any observation which has a Cook's distance greater 
+                          than 4 times the mean of all observations. "
+                        ),
+                        p(
+                          em(
+                            "Please note that because service data are only 
+                            available since 10/1/2014, selecting service use 
+                            variables will result in assessments prior to that 
+                            date being filtered out."
+                          )
+                        )
+                      ),
+                      box(
+                        title = "Notes", 
+                        color = "black",
+                        collapsible = TRUE, 
+                        collapsed = TRUE,
+                        width = NULL,
+                        p(
+                          em(
+                            "Since service data are only available since 10/1/2014,
+                            selecting service use variables will result in 
+                            assessments prior to that date being filtered out. 
+                            In these instances some episodes include only 
+                            partial data, and the predictor values are calculated 
+                            on the remaining data fom the episode.  Episodes 
+                            with missing initial scores are not included in 
+                            the model when the time frame is filtered."
+                          )
+                        ),
+                        p(
+                          "By default, assessments are excluded if there are potential 
+                          data issues. These include the absence of any claims data 
+                          attached to the youth's Medicaid ID or the absence of a viable 
+                          Medicaid ID in the ID crosswalk table."
                         )
                       )
                     ),
                     column(
                       width = 8, 
                       box(
-                        title = "Table", 
+                        title = "Summary", 
                         color = "black",
                         collapsible = TRUE,
                         collapsed = F,
                         width = NULL,
-                        dataTableOutput("regress_dt")
+                        plotlyOutput("regress_bar"),
+                        p("A p-value less than or equal to 0.05 denotes a
+                          significant relationship between the predictor
+                          and response variable."
+                        )
+                      ),
+                      box(
+                        title = "Table", 
+                        color = "black",
+                        collapsible = TRUE,
+                        collapsed = T,
+                        width = NULL,
+                        dataTableOutput("regress_dt"),
+                        br(),
+                        selectInput(
+                          "regress_input",
+                          label = "Display selected input:",
+                          choices = c("Intercept" = "intercept",
+                                      "Good fit?" = "r.squared",
+                                      "Significance" = "p.value"),
+                          selected = c("Intercept","Significance"),
+                          multiple = T
+                        )
+                      ),
+                      box(
+                        title = "Plot", 
+                        color = "black",
+                        collapsible = TRUE,
+                        collapsed = T,
+                        width = NULL,
+                        plotlyOutput("regress"),
+                        br(),
+                        checkboxInput(
+                          "ribbons", 
+                          "Include uncertainty ribbons", 
+                          value = FALSE, 
+                          width = NULL
+                        ),
+                        p(
+                          em("The thickness of an uncertainty ribbon gives an 
+                             indication of the relative uncertainty at that point 
+                             on the line.  If uncertainty lines overlap, it is 
+                             uncertain whether the actual values are distinct.")
+                        ),
+                        box(
+                          title = "Considerations", 
+                          color = "black",
+                          collapsible = TRUE,
+                          collapsed = T,
+                          width = NULL,
+                          p(
+                            "The following considerations may help to inform your 
+                            interpretation of the data shown here:",
+                            tags$ul(
+                              tags$li(strong("High scores with low or zero LOS: "),
+                                      "If a youth's initial score is high and length 
+                                      of episode is either very low or zero, it is 
+                                      possible that the youth was admitted to the 
+                                      hospital in certain cases.  If the 
+                                      hospitalization resulted in the end of agency
+                                      services or in the start of a new episode upon 
+                                      return, the LOS metric might not be a suitable 
+                                      proxy for resource use during a given episode.  
+                                      In such instances, the number or cost of 
+                                      services may be a better indicator."),
+                              tags$li(strong("Outliers highlighted: "),
+                                      "Please note that outliers are highlighted in 
+                                      the plot when the ",em("Remove outliers?"),
+                                      " checkbox is not selected.  Clicking on the 
+                                      legend to hide the outliers in the plot does 
+                                      not, however, remove them from the linear 
+                                      model which produces the line.")
+                            )
+                          )
+                        )
                       )
-                      # ,
-                      # box(
-                      #   title = "Plot", 
-                      #   color = "black",
-                      #   collapsible = TRUE,
-                      #   collapsed = T,
-                      #   width = NULL,
-                      #   plotlyOutput("regress"),
-                      #   br(),
-                      #   checkboxInput(
-                      #     "ribbons", 
-                      #     "Include uncertainty ribbons", 
-                      #     value = FALSE, 
-                      #     width = NULL
-                      #   ),
-                      #   p(
-                      #     em("The thickness of an uncertainty ribbon gives an 
-                      #        indication of the relative uncertainty at that point 
-                      #        on the line.  If uncertainty lines overlap, it is 
-                      #        uncertain whether the actual values are distinct.")
-                      #   ),
-                      #   box(
-                      #     title = "Considerations", 
-                      #     color = "black",
-                      #     collapsible = TRUE,
-                      #     collapsed = T,
-                      #     width = NULL,
-                      #     p(
-                      #       "The following considerations may help to inform your 
-                      #       interpretation of the data shown here:",
-                      #       tags$ul(
-                      #         tags$li(strong("High scores with low or zero LOS: "),
-                      #                 "If a youth's initial score is high and length 
-                      #                 of episode is either very low or zero, it is 
-                      #                 possible that the youth were admitted to the 
-                      #                 hospital in certain cases.  If the 
-                      #                 hospitalization resulted in the end of agency
-                      #                 services or in the start of a new episode upon 
-                      #                 return, the LOS metric might not be a suitable 
-                      #                 proxy for resource use during a given episode.  
-                      #                 In such instances, the number or cost of 
-                      #                 services may be a better indicator."),
-                      #         tags$li(strong("Outliers highlighted: "),
-                      #                 "Please note that outliers are highlighted in 
-                      #                 the plot when the ",em("Remove outliers?"),
-                      #                 " checkbox is not selected.  Clicking on the 
-                      #                 legend to hide the outliers in the plot does 
-                      #                 not, however, remove them from the linear 
-                      #                 model which produces the line.")
-                      #       )
-                      #     )
-                      #   )
-                      # )
                     )
                   )
                 ),
@@ -433,7 +553,7 @@ dashboardPage(skin = "yellow",
                         "The developers of the CAFAS recommend a total cutoff 
                         score of 80 as an indicator of functional impairment, 
                         warranting classification of a child as having SED (",
-                        a(href="https://deepblue.lib.umich.edu/handle/2027.42/44651", 
+                        a(href = "https://deepblue.lib.umich.edu/handle/2027.42/44651", 
                           "Hodges and Wong, 1996"),")."
                       ),
                       p(
@@ -574,11 +694,114 @@ dashboardPage(skin = "yellow",
               status = "warning",
               collapsible = TRUE, 
               width = NULL,
+              checkboxInput(
+                "rm_data_issues3",
+                "Remove potential data issues",
+                value = TRUE,
+                width = NULL
+              ),
               tabBox(
                 width = 12,
                 tabPanel(
+                  "Services following Assessment",
+                  fluidRow(
+                    column(
+                      width = 6,
+                      dataTableOutput("elig_serv_dt")
+                    ),
+                    column(
+                      width = 6,
+                      plotlyOutput("elig_serv_bar")
+                      #plotlyOutput("elig_serv_scatter")
+                    )
+                  ),
+                  box(
+                    title = "Definition and Options", 
+                    color = "black",
+                    collapsible = TRUE,
+                    collapsed = F,
+                    width = NULL,
+                    p(
+                      "This measure looks at the proportion of times that youth 
+                      have received services following a CAFAS assessment which 
+                      are in concordance with the SED waiver criteria. The bar 
+                      chart on the right shows the breakdown of these cases into 
+                      categories of acceptable service delivery (i.e. those who were ",
+                      em("Not eligible, did not receive services"), " or ",
+                      em("Eligible, received services"),") and services which 
+                      did not meet the criteria (i.e. those who were ",
+                      em("Not eligible, received services"), " or ",
+                      em("Eligible, did not receive services"),")."
+                    ),
+                    p(
+                      "The filters below allow users to view the ways in which 
+                      the measure has been filtered to better understand the data."
+                    ),
+                    inputPanel(
+                      checkboxInput(
+                        "exclude_ao", 
+                        "Exclude assessment only? ", 
+                        value = TRUE, 
+                        width = NULL
+                      ),
+                      uiOutput("days_btwn_elig"),
+                      checkboxInput(
+                        "only_init_elig", 
+                        "Include only initial assessment?", 
+                        value = F, 
+                        width = NULL
+                      )
+                    ),
+                    tags$ul(
+                      tags$li(
+                        "By default, assessments are excluded if they are presumed 
+                        to be completed as ", em("assessment only"), ", standalone 
+                        assessments unrelated to services.  This applies for 
+                        assessments without services during the 90 days following."
+                      ),
+                      tags$li(
+                        "By default, assessments are included only if the number 
+                        of days between that assessment and the next subsequent 
+                        assessment is more than 30 days, to ensure sufficient 
+                        time for service provision to occur.  Intervals of more 
+                        than a year are excluded to remove outliers and cases 
+                        left open in FAS."
+                      ),
+                      tags$li(
+                        "By default, assessments are excluded if there are 
+                        potential data issues.  These include the absence of any 
+                        claims data attached to the youth's Medicaid ID or the 
+                        absence of a viable Medicaid ID in the ID crosswalk table."
+                      ),
+                      tags$li(
+                        "By default, assessments are included regardless of whether 
+                        they are done at intake or thereafter.  To view only 
+                        assessments which were marked as ", em("Initial CAFAS"),
+                        " or ", em("Initial PECFAS"),", please select the ",
+                        em("Include only initial assessment?"), " option."
+                      ),
+                      tags$li(
+                        "To view the graphs for a specific time frame, expand the 
+                        'Filters' option in the left hand menu. Find the 'Date Range:' 
+                        filter and select the desired time frame."
+                      ),
+                      tags$li(
+                        "Please note: The date range filter applies to the entire
+                        application and therefore may need to be updated again when 
+                        viewing a different measure."
+                      )
+                    )
+                  )
+                ),
+                tabPanel(
                   "Compare",
                   plotlyOutput("eligible_bar"),
+                  p(
+                    "By default, assessments are excluded if there are potential 
+                    data issues. These include the absence of any claims data 
+                    attached to the youth's Medicaid ID or the absence of a viable 
+                    Medicaid ID in the ID crosswalk table."
+                  ),
                   br(),
                   box(
                     title = "Chart Options", 
@@ -619,7 +842,14 @@ dashboardPage(skin = "yellow",
                 ),
                 tabPanel(
                   "How long?",
-                  plotlyOutput("inel_days_hist")
+                  plotlyOutput("inel_days_hist"),
+                  br(),
+                  p(
+                    "By default, assessments are excluded if there are potential 
+                    data issues. These include the absence of any claims data 
+                    attached to the youth's Medicaid ID or the absence of a viable 
+                    Medicaid ID in the ID crosswalk table."
+                  )
                 ),
                 tabPanel(
                   "About",
@@ -744,11 +974,46 @@ dashboardPage(skin = "yellow",
                   p(
                     "On the chart below you can see the paths taken by multiple children
                     during the course of their respective treatment episodes.  Note that 
-                    any time you change a filter, new episodes will be selected 
-                    at random and displayed. You can change the number of 
+                    any time you change a filter on the left, new episodes will be selected 
+                    at random from the filtered dataset and displayed. You can change the number of 
                     episodes that are displayed here:",uiOutput("num_kids")
                   ),
                   dygraphOutput("all_linechart")
+                ),
+                tabPanel(
+                  "About",
+                  p(
+                    "This line chart is meant to be crowded.  It shows the 
+                    trajectory of changes in the overall PECFAS/CAFAS score for 
+                    youths as they progress through an episode of treatment.  
+                    The many overlapping lines indicate the number of different 
+                    paths through treatment. There are so many separate episodes 
+                    in this dataset that they cannot all be displayed 
+                    simultaneously.  To see a new group of episodes, just move 
+                    the numeric filter up or down and a random selection of that 
+                    many episodes will generate a new line chart using the 
+                    filters that you have applied in the left-hand panel."
+                  ),
+                  p(
+                    "If you hover over one line, the others will fade and allow 
+                    you to examine a single line more closely.  Each line traces 
+                    the changes in an individual child's functioning through an 
+                    episode of treatment, from the beginning (on the left) to 
+                    the end (on the right).  The x-axis along the bottom shows 
+                    the number of days that had elapsed since the beginning of 
+                    the episode when the score was given.  Beneath the x-axis 
+                    is a range selector that allows you to show only days within 
+                    a specific range from the start of the episode and to scroll 
+                    through the episode."
+                  ),
+                  p(
+                    "A line that moves down as it moves to the right indicates 
+                    improved functioning; a line that moves up, a decrease in 
+                    overall functioning.  Most lines go up and down over time, 
+                    showing the ebb and flow of recovery.  Dotted lines 
+                    indicating the threshold scores for high and medium 
+                    impairment are shown in the background for reference."
+                  )
                 )
               )
             )
@@ -944,7 +1209,7 @@ dashboardPage(skin = "yellow",
             p(
               em("The table below shows information for each of the clusters, 
                  as well as the average scaled scores on each subscale of the  
-                 SIS for people in that cluster:")
+                 CAFAS for people in that cluster:")
               ),
             DT::dataTableOutput("need_grp_dt"),
             box(
@@ -1506,15 +1771,16 @@ dashboardPage(skin = "yellow",
                       tags$li(strong("Home Based: "),
                               "Received service code(s) H0036 and/or H2033.  
                               May also include Wraparound (H2021) or 
-                              other services"),
+                              other services in addition to H0036 and/or H2033."),
                       tags$li(strong("Case Management: "),
                               "Received service code(s) T1016 and/or T1017.  
                               May also include Wraparound (H2021) or 
-                              other services"),
+                              other services in addition to T1016 and/or T1017."),
                       tags$li(strong("Outpatient: "),
                               "Received service code(s) 
                               from the 90xxx series.  May also include 
-                              Wraparound (H2021) or other services"),
+                              Wraparound (H2021) or other services in addition to 
+                              outpatient services"),
                       tags$li(strong("Wraparound: "),
                               "Received Wraparound services (H2021) but none of 
                               the other service codes associated with 

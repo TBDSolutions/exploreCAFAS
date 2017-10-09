@@ -30,7 +30,7 @@ shinyServer(
                  -rev_assess_ord,-rev_episode_elapsed,-rev_episode_length)
       } else input$select_episode
       
-      # Define lists based on inputs for us in %in% statements belows
+      # Define lists based on inputs for use in %in% statements belows
       
       tool_version <-
         if (input$select_version == "Both versions") {c("CAFAS","PECFAS")
@@ -43,8 +43,15 @@ shinyServer(
         } else if (input$radio_status == "Inactive") { c("Inactive","Inferred Inactive")
         } else input$radio_status
       
+      filt_type <-
+        if (input$radio_type == "Initial") {c("Initial CAFAS","Initial PECFAS","Revised Initial")
+        } else if (input$radio_type == "All") {unique(scrub_fas$assess_type)
+        } else input$radio_type
+      
       prog_type <- 
-        if (input$select_prog == "All") {levels(unique(scrub_fas$program_type))
+        if (input$select_prog == "All") {
+          # Include all programs if "All" is selected
+          levels(unique(scrub_fas$program_type))
         } else input$select_prog
       
       # Apply selected filters
@@ -56,8 +63,49 @@ shinyServer(
         filter(as.Date(max_date) >= input$dateRange[1]
                & as.Date(max_date) <= input$dateRange[2]
                & client_status %in% tx_status
+               & assess_type %in% filt_type
                & version %in% tool_version
                & program_type %in% prog_type)
+      
+    })
+    
+    hist_df <- reactive({
+      
+      if (input$agency == "All") {
+        fas_filt <- cafasInput()
+      } else if ( input$agency %in% levels(unique(scrub_fas$cmh)) ) {
+        fas_filt <- cafasInput() %>% filter(cmh %in% input$agency)
+      } else print(paste0("Error.  Unrecognized input."))
+      
+      # Filter to only include most recent assessments based on selection
+      if (input$most_recent == T) {
+        fas_filt <- 
+          fas_filt %>%
+          ungroup() %>% 
+          group_by(fake_episode_id) %>%
+          filter(assess_ord == max(assess_ord))
+      } else fas_filt <- fas_filt
+      
+      # Filter discharge assessments based on selection
+      if (input$remove_dc == T) {
+        fas_filt <- 
+          fas_filt %>%
+          # For episodes with an end date, incl assessments not done on end date
+          # For episodes without an end date, incl assessments not marked as 'Exit'
+          filter(is.na(episode_end) == F & assess_date != episode_end
+                 | is.na(episode_end) == T & grepl("^Exit ",assess_type) == F) %>% 
+          ungroup() %>% droplevels()
+      } else fas_filt <- fas_filt
+      
+      fas_filt %<>%
+        filter(assess_ord >= input$assess_num[1]
+               & assess_ord <= input$assess_num[2]) %>%
+        filter(days_between >= input$days_between[1]
+               & days_between <= input$days_between[2]) %>%
+        # No service data prior to 2014-10-01
+        filter(assess_date >= "2014-10-01")
+      
+      fas_filt
       
     })
     
@@ -170,18 +218,26 @@ shinyServer(
         } else if (input$radio_status == "Inactive") { c("Inactive","Inferred Inactive")
         } else input$radio_status
       
+      filt_type <-
+        if (input$radio_type == "Initial") {c("Initial CAFAS","Initial PECFAS","Revised Initial")
+        } else if (input$radio_type == "All") {unique(scrub_fas$assess_type)
+        } else input$radio_type
+      
       outcome_df <- outcome_df()
       
       if (input$agency == "All") {
         outcome_df %<>% 
           filter(as.Date(max_date) >= input$dateRange[1]
                  & as.Date(max_date) <= input$dateRange[2]
-                 & client_status %in% tx_status)
+                 & client_status %in% tx_status
+                 & assess_type %in% filt_type
+                 )
       } else if ( input$agency %in% levels(unique(scrub_fas$cmh)) ) {
         outcome_df %<>% 
           filter(as.Date(max_date) >= input$dateRange[1]
                  & as.Date(max_date) <= input$dateRange[2]
                  & client_status %in% tx_status
+                 & assess_type %in% filt_type
                  & cmh %in% input$agency)
       } else print(paste0("Error.  Unrecognized input."))
       
@@ -201,10 +257,10 @@ shinyServer(
           changesubscale_n = sum(change_subscale_log, na.rm = T)
         ) %>%
         mutate(
-          meaningimprove_p = round(meaningimprove_n / meaningimprove_d *100, digits = 1),
-          changeimpair_p = round(changeimpair_n / changeimpair_d *100, digits = 1),
-          changepbi_p = round(changepbi_n / changepbi_d *100, digits = 1),
-          changesubscale_p = round(changesubscale_n / changesubscale_d *100, digits = 1)
+          meaningimprove_p = round(meaningimprove_n / meaningimprove_d * 100, digits = 1),
+          changeimpair_p = round(changeimpair_n / changeimpair_d * 100, digits = 1),
+          changepbi_p = round(changepbi_n / changepbi_d * 100, digits = 1),
+          changesubscale_p = round(changesubscale_n / changesubscale_d * 100, digits = 1)
         ) %>%
         filter(is.na(cmh) == F) %>%
         ungroup() %>% 
@@ -232,17 +288,25 @@ shinyServer(
         if (input$radio_status == "Either") {c("Active","Inactive","Inferred Inactive")
         } else if (input$radio_status == "Inactive") { c("Inactive","Inferred Inactive")
         } else input$radio_status
+
+      filt_type <-
+        if (input$radio_type == "Initial") {c("Initial CAFAS","Initial PECFAS","Revised Initial")
+        } else if (input$radio_type == "All") {unique(scrub_fas$assess_type)
+        } else input$radio_type
       
       if (input$agency == "All") {
         outcome_df %<>% 
           filter(as.Date(assess_date) >= input$dateRange[1]
                  & as.Date(assess_date) <= input$dateRange[2]
-                 & client_status %in% tx_status)
+                 & client_status %in% tx_status
+                 & assess_type %in% filt_type
+                 )
       } else if ( input$agency %in% levels(unique(scrub_fas$cmh)) ) {
         outcome_df %<>% 
           filter(as.Date(assess_date) >= input$dateRange[1]
                  & as.Date(assess_date) <= input$dateRange[2]
                  & client_status %in% tx_status
+                 & assess_type %in% filt_type
                  & cmh %in% input$agency)
       } else print(paste0("Error.  Unrecognized input."))
       
@@ -281,64 +345,85 @@ shinyServer(
       #  It is not used directly in visualizations, but passed through 
       # 'model_df_rev' based on user selection to include/exclude outliers
       
+      # Filter by date range to ensure comaparable time frames
       if (input$predictor == "Length of episode") {
         # Since LOS is derived from CAFAS data, allow full date range
         df <- cafasInput()
       } else 
-        df <- 
-          cafasInput() %>%
-          # No service data prior to 2014-10-01
-          filter(assess_date >= "2014-10-01")
+        df <- cafasInput() %>%
+        # No service data prior to 2014-10-01
+        filter(assess_date >= "2014-10-01")
+      
+      # Exclude potential data issues
+      if (input$rm_data_issues2 == T) {
+        df <-
+          df %>%
+          filter(no_svcs_ever == F & no_xwalk == F) %>%
+          droplevels()
+      } else df <- df
       
       df %<>%
         mutate(episode = as.factor(fake_episode_id)) %>%
         group_by(episode,cmh) %>%
-        summarize(avg_score = mean(score_total, na.rm = T),
-                  max_score = max(score_total, na.rm = T),
-                  init_score = max(score_total[assess_date == min(assess_date)],na.rm = T),
-                  last_score = max(score_total[assess_date == max(assess_date)],na.rm = T),
-                  los = max(episode_length),
-                  Hours_Total_PerMo = sum(Hours_Total_PerMo, na.rm = T),
-                  Hours_HB_PerMo = sum(Hours_HB_PerMo, na.rm = T),
-                  Hours_CM_PerMo = sum(Hours_CM_PerMo, na.rm = T),
-                  Hours_Wrap_PerMo = sum(Hours_Wrap_PerMo, na.rm = T)
+        summarize(
+          avg_score = mean(score_total, na.rm = T),
+          max_score = max(score_total, na.rm = T),
+          init_score = max(score_total[assess_ord == 1],na.rm = T),
+          init_three = max(score_total[assess_ord <= 3],na.rm = T),
+          last_score = max(score_total[assess_date == max(assess_date)],na.rm = T),
+          los = max(episode_length),
+          est_hrs = sum(est_hrs),
+          est_cost = sum(est_cost, na.rm = T),
+          days_between = sum(days_between, na.rm = T)
         ) %>%
-        mutate(chg_score = last_score - init_score) %>%
+        mutate(
+          chg_score = last_score - init_score,
+          init_score = ifelse(is.infinite(init_score), NA, init_score),
+          init_three = ifelse(is.infinite(init_three), NA, init_three),
+          est_cost_mo = round(est_cost/days_between*30, digits = 2),
+          est_hrs_mo = est_hrs/days_between*30 
+        ) %>%
         ungroup() %>%
         filter(los >= 0)
       
-      # Select predictor variable for use
       
-      if (input$predictor == "Length of episode") {
-        df %<>% rename(predictor = los)
-      } else if (input$predictor == "Total hours of service per month") {
-        df %<>% rename(predictor = Hours_Total_PerMo)
-      } else if (input$predictor == "Hours of home-based services per month") {
-        df %<>% rename(predictor = Hours_HB_PerMo)
-      } else if (input$predictor == "Hours of case management per month") {
-        df %<>% rename(predictor = Hours_CM_PerMo)
-      } else if (input$predictor == "Hours of wraparound services per month") {
-        df %<>% rename(predictor = Hours_Wrap_PerMo)
+      # Select predictor variable for use 
+      
+      if (input$predictor == "Initial CAFAS Score in Episode") {
+        df %<>% rename(predictor = init_score)
+      } else if (input$predictor == "Highest of Initial 3 Scores in Episode") {
+        df %<>% rename(predictor = init_three)
+      } else if (input$predictor == "Average CAFAS Score during Episode") {
+        df %<>% rename(predictor = avg_score)
+      } else if (input$predictor == "Highest CAFAS Score during Episode") {
+        df %<>% rename(predictor = max_score)
+      } else if (input$predictor == "Change in CAFAS Score during Episode") {
+        df %<>% rename(predictor = chg_score)
       } else print(paste0("Error.  Unrecognized input."))
       
       # Select response variable for use
       
-      if (input$response == "Initial CAFAS Score in Episode") {
-        df %<>% rename(response = init_score)
-      } else if (input$response == "Average CAFAS Score during Episode") {
-        df %<>% rename(response = avg_score)
-      } else if (input$response == "Highest CAFAS Score during Episode") {
-        df %<>% rename(response = max_score)
-      } else if (input$response == "Change in CAFAS Score during Episode") {
-        df %<>% rename(response = chg_score)
+      if (input$response == "Length of episode") {
+        df %<>% rename(response = los)
+      } else if (input$response == "Estimated cost of episode") {
+        df %<>% rename(response = est_cost)
+      } else if (input$response == "Estimated monthly cost") {
+        df %<>% rename(response = est_cost_mo)
+      } else if (input$response == "Estimated hours of service") {
+        df %<>% rename(response = est_hrs)
+      } else if (input$response == "Estimated hours of service per month") {
+        df %<>% rename(response = est_hrs_mo)
       } else print(paste0("Error.  Unrecognized input."))
+
       
+      # Filter out infinite and NA values
+      df %<>% filter(is.infinite(response) == F & is.na(response) == F)
       
       # Manage output for "All" vs. individual agency selection
       
       if (input$agency == "All") {
         
-        df
+        df 
         
       } else if (input$agency %in% levels(unique(scrub_fas$cmh))) {
         
@@ -346,7 +431,7 @@ shinyServer(
         # of each other agency with the predictor
         
         # dmyVars1 creates data frame with dummy variable for each level of cmh
-        dmyVars <- data.frame(predict(dummyVars(" ~ cmh", data = df), newdata=df))
+        dmyVars <- data.frame(predict(dummyVars(" ~ cmh", data = df), newdata = df))
         
         # Additional dummy variable for each cmh interaction with predictor
         dmyVars %<>% mutate_each(funs(pred = .*df$predictor), starts_with("cmh"))
@@ -385,7 +470,7 @@ shinyServer(
         m <- 
           model_df() %>%
           # Subset response, original predictor column and created dummy variables
-          select(response,predictor,ends_with("_pred")) %>%
+          select(response,predictor,starts_with("cmh.")) %>%
           lm(response ~ ., data = .)
         
       } else print(paste0("Error.  Unrecognized input."))
@@ -447,10 +532,59 @@ shinyServer(
         # Create linear model
         model_df_rev() %>%
           # Subset response, original predictor column and created dummy variables
-          select(response,predictor,ends_with("_pred")) %>%
+          select(response,predictor,starts_with("cmh.")) %>%
           lm(response ~ ., data = .)
         
       } else print(paste0("Error.  Unrecognized input.")) 
+      
+    })
+    
+    elig_df <- reactive({
+      
+      if (input$agency == "All") {
+        fas_filt <- cafasInput()
+      } else if ( input$agency %in% levels(unique(scrub_fas$cmh)) ) {
+        fas_filt <- cafasInput() %>% filter(cmh %in% input$agency)
+      } else print(paste0("Error.  Unrecognized input."))
+      
+      # Exclude all CAFAS scores where LOC is marked as "Assessment only"
+      if (input$exclude_ao == T) {
+        fas_filt <- 
+          fas_filt %>%
+          filter(LOC != "Assessment Only") %>%
+          droplevels()
+      } else fas_filt <- fas_filt
+      
+      # Exclude potential data issues
+      if (input$rm_data_issues3 == T) {
+        fas_filt <-
+          fas_filt %>%
+          filter(no_svcs_ever == F & no_xwalk == F) %>%
+          droplevels()
+      } else fas_filt <- fas_filt
+      
+      if (input$only_init_elig == T) {
+        fas_filt <- 
+          fas_filt %>%
+          filter(assess_type %in% c("Initial CAFAS","Initial PECFAS")) %>%
+          droplevels()
+      } else fas_filt <- fas_filt
+      
+      fas_filt %>%
+        filter(
+          days_between >= input$days_btwn_elig[1]
+          & days_between <= input$days_btwn_elig[2]) %>%
+        group_by(cmh,elig_status) %>%
+        summarize(
+          n = n()
+        ) %>%
+        ungroup() %>%
+        group_by(cmh) %>%
+        mutate(
+          all = sum(n),
+          pct = round(n / all * 100, digits = 1)
+        ) %>%
+        ungroup()
       
     })
     
@@ -521,17 +655,21 @@ shinyServer(
     
     output$select_prog <- renderUI({
       
-      filtre <- if (input$agency == "All") {
-        levels(scrub_fas$program_type)
+      if (input$agency == "All") {
+        selectInput(
+          "select_prog",
+          label = "Select Program Type:",
+          # Force selection of all program types at regional level, since definitions vary
+          choices = c("All"), 
+          selected = "All"
+        )
       } else 
-        levels(droplevels(scrub_fas$program_type[scrub_fas$cmh == input$agency]))
-      
-      selectInput(
-        "select_prog",
-        label = "Select Program Type:",
-        choices = c("All", filtre), 
-        selected = "All"
-      )
+        selectInput(
+          "select_prog",
+          label = "Select Program Type:",
+          choices = c("All", levels(droplevels(scrub_fas$program_type[scrub_fas$cmh == input$agency]))), 
+          selected = "All"
+        )
     })
     
     # Workaround for 'shinydashboard' weirdness, initialize an empty UI-chunk
@@ -625,6 +763,38 @@ shinyServer(
       )
     })
     
+    output$days_between <- renderUI({
+      sliderInput(
+        "days_between",
+        "Select assessments by the number of days occurring between consecutive assessments:",
+        min = min(cafasInput()$days_between),
+        max = max(cafasInput()$days_between),
+        value = c(min(cafasInput()$days_between),
+                  max(cafasInput()$days_between))
+      )
+    })
+    
+    output$days_btwn_elig <- renderUI({
+      sliderInput(
+        "days_btwn_elig",
+        "Number of days between consecutive assessments:",
+        min = min(cafasInput()$days_between),
+        max = max(cafasInput()$days_between),
+        value = c(30,365)
+      )
+    })
+    
+    output$days_between_again <- renderUI({
+      sliderInput(
+        "days_between_again",
+        "Select assessments by the number of days occurring between consecutive assessments:",
+        min = min(cafasInput()$days_between),
+        max = max(cafasInput()$days_between),
+        value = c(min(cafasInput()$days_between),
+                  max(cafasInput()$days_between))
+      )
+    })
+    
     output$k_vars <- renderUI({
       
       # Create multiple dropdowns, each displaying a different colname
@@ -688,43 +858,24 @@ shinyServer(
     })
     
     output$hist_fas <- renderPlotly({
-      
-      if (input$agency == "All") {
-        fas_filt <- cafasInput()
-      } else if ( input$agency %in% levels(unique(scrub_fas$cmh)) ) {
-        fas_filt <- cafasInput() %>% filter(cmh %in% input$agency)
-      } else print(paste0("Error.  Unrecognized input."))
-      
-      # Filter discharge assessments based on selection
-      if (input$remove_dc == T) {
-        fas_filt <- 
-          fas_filt %>%
-          # For episodes with an end date, incl assessments not done on end date
-          # For episodes without an end date, incl assessments not marked as 'Exit'
-          filter(is.na(episode_end) == F & assess_date != episode_end
-                 | is.na(episode_end) == T & grepl("^Exit ",assess_type) == F) %>% 
-          ungroup() %>% droplevels()
-      } else fas_filt <- fas_filt
-      
-      fas_filt %>%
-        filter(assess_ord >= input$assess_num[1]
-               & assess_ord <= input$assess_num[2]) %>% 
-        # No service data prior to 2014-10-01
-        filter(assess_date >= "2014-10-01")
-      
+
       if ( input$agency == "All" ) {
-        
+        fas_filt <- hist_df()
         notetxt <- "Distribution of total scores<br>across all CMHSPs"
-        
       } else if ( input$agency %in% levels(unique(scrub_fas$cmh)) ) {
-        
-        fas_filt %<>% 
-          filter(cmh == input$agency)
-        
+        fas_filt <- hist_df() %>% filter(cmh == input$agency)
         notetxt <- paste0("Distribution of total scores<br>at ",input$agency)
-        
       } else
         print(paste0("Error.  Unrecognized input."))
+      
+      # Exclude potential data issues
+      if (input$rm_data_issues1 == T) {
+        fas_filt <-
+          fas_filt %>%
+          filter(no_svcs_ever == F & no_xwalk == F) %>%
+          droplevels()
+      } else fas_filt <- fas_filt
+      
       
       minx <- min(fas_filt$score_total)
       maxx <- max(fas_filt$score_total)
@@ -746,7 +897,6 @@ shinyServer(
                         text = ~paste("kids with scores in this range received ", 
                                       tolower(LOC), " following the assessment"),
                         hoverinfo = "y+text", 
-                        name = "people",
                         showlegend = T) %>%
           layout(title = "Distribution of Scores by Level of Care",
                  barmode = "stack",
@@ -762,7 +912,7 @@ shinyServer(
                                     text = notetxt)) 
         
         max_hist <- max(hist(fas_filt$score_total,
-                             breaks=input$sni_bins)$counts,na.rm=TRUE)
+                             breaks = input$sni_bins)$counts,na.rm = TRUE)
         
         ifelse(
           input$central == "Mean",
@@ -784,7 +934,7 @@ shinyServer(
                                            xaxis = "x")
         )
         
-        if(input$select_version == "CAFAS") {
+        if (input$select_version == "CAFAS") {
           
           hist %>%
             add_lines(
@@ -830,7 +980,7 @@ shinyServer(
         
         one_plot <- function(d) {
           
-          max_hist <- max(hist(d$score_total)$counts,na.rm=TRUE)
+          max_hist <- max(hist(d$score_total)$counts,na.rm = TRUE)
           
           hist <-
             d %>%
@@ -838,8 +988,12 @@ shinyServer(
             plot_ly(x = ~score_total) %>%
             add_histogram(
               opacity = 0.6,
+              autobinx = F,
               color = ~LOC,
               colors = soft_12,
+              xbins = list(start = minx, 
+                           end = maxx, 
+                           size = sizex),
               text = ~paste("kids with scores in this range received ", 
                             tolower(LOC), " following the assessment"),
               hoverinfo = "y+text"
@@ -847,7 +1001,7 @@ shinyServer(
             layout(
               title = "Distribution of Scores by Level of Care"
             )
-          
+
           ifelse(
             input$central == "Mean",
             yes = hist <- hist %>% add_lines(x = ~rep(round(mean(d$score_total), digits = 1), each = 2),
@@ -869,9 +1023,9 @@ shinyServer(
                                              xaxis = "x",
                                              showlegend = FALSE)
           )
-          
+
           if(input$select_version == "CAFAS") {
-            
+
             hist %>%
               add_lines(
                 x = ~rep(120, each = 2),
@@ -893,9 +1047,9 @@ shinyServer(
                 xaxis = "x",
                 showlegend = FALSE
               )
-            
+
           } else if (input$select_version == "PECFAS") {
-            
+
             hist %>%
               add_lines(
                 x = ~rep(90, each = 2),
@@ -907,18 +1061,18 @@ shinyServer(
                 xaxis = "x",
                 showlegend = FALSE
               )
-            
-          } else 
-            
+
+          } else
+
             hist
-          
+
         }
         
         fas_filt %>%
           split(.$LOC) %>%
           lapply(one_plot) %>% 
           subplot(
-            nrows = 6, 
+            nrows = 7, 
             shareX = TRUE, 
             titleX = FALSE
           )
@@ -931,6 +1085,11 @@ shinyServer(
       
       df <-
       cafasInput() %>%
+        filter(
+          assess_ord >= input$assess_num_again[1]
+          & assess_ord <= input$assess_num_again[2]
+          & days_between >= input$days_between_again[1]
+          & days_between <= input$days_between_again[2]) %>%
         group_by(cmh) %>%
         summarize(n = n(),
                   med = median(score_total),
@@ -958,8 +1117,14 @@ shinyServer(
     
     output$kw_isdiff <- renderText({
       
+      df <- cafasInput() %>% 
+        filter(assess_ord >= input$assess_num_again[1]
+               & assess_ord <= input$assess_num_again[2]
+               & days_between >= input$days_between_again[1]
+               & days_between <= input$days_between_again[2])
+      
       # kruskal-wallis (test of medians)
-      pval <- kruskal.test(score_total ~ cmh, data = cafasInput())$p.value
+      pval <- kruskal.test(score_total ~ cmh, data = df)$p.value
       
       paste0("Analysis indicates that ",
              ifelse(pval <= 0.05,
@@ -972,9 +1137,15 @@ shinyServer(
     
     output$by_cmh_kw <- renderPlotly({
       
+      df <- cafasInput() %>% 
+        filter(assess_ord >= input$assess_num_again[1]
+               & assess_ord <= input$assess_num_again[2]
+               & days_between >= input$days_between_again[1]
+               & days_between <= input$days_between_again[2])
+      
       pairwise <- 
-        pairwise.wilcox.test(cafasInput()$score_total, 
-                             cafasInput()$cmh, 
+        pairwise.wilcox.test(df$score_total, 
+                             df$cmh, 
                              p.adjust.method = "bonferroni")$p.value %>% 
         round(., digits = 5)
       
@@ -1000,10 +1171,11 @@ shinyServer(
     })
     
     output$hist_box_cmh <- renderPlotly({
-      if ( input$By_CMH_display == "Facetted histogram" ){
+      if (input$By_CMH_display == "Facetted histogram") {
+        
         one_plot <- function(d) {
           
-          max_hist <- max(hist(d$score_total)$counts,na.rm=TRUE)
+          max_hist <- max(hist(d$score_total)$counts,na.rm = TRUE)
           
           plot_ly(d, x = ~score_total) %>%
             add_histogram(
@@ -1033,7 +1205,9 @@ shinyServer(
         cafasInput() %>%
           filter(
             assess_ord >= input$assess_num_again[1]
-            & assess_ord <= input$assess_num_again[2]) %>%
+            & assess_ord <= input$assess_num_again[2]
+            & days_between >= input$days_between_again[1]
+            & days_between <= input$days_between_again[2]) %>%
           split(.$cmh) %>%
           lapply(one_plot) %>% 
           subplot(
@@ -1041,15 +1215,30 @@ shinyServer(
             shareX = TRUE, 
             titleX = FALSE) 
         
-      }else if ( input$By_CMH_display == "Boxplot" ) {
+      } else if ( input$By_CMH_display == "Boxplot" ) {
+        
         # Filter by selected agency
         if (input$agency == "All") {
-          fas_filt <- cafasInput()%>%filter(assess_ord >= input$assess_num_again[1]
-                                            & assess_ord <= input$assess_num_again[2])
+          
+          fas_filt <- cafasInput() %>%
+            filter(
+              assess_ord >= input$assess_num_again[1]
+              & assess_ord <= input$assess_num_again[2]
+              & days_between >= input$days_between_again[1]
+              & days_between <= input$days_between_again[2]
+            )
+          
         } else if ( input$agency %in% levels(unique(scrub_fas$cmh)) ) {
-          fas_filt <- cafasInput() %>% filter(cmh %in% input$agency
-                                              &assess_ord >= input$assess_num_again[1]
-                                              & assess_ord <= input$assess_num_again[2])
+          
+          fas_filt <- cafasInput() %>% 
+            filter(
+              cmh %in% input$agency
+              & assess_ord >= input$assess_num_again[1]
+              & assess_ord <= input$assess_num_again[2]
+              & days_between >= input$days_between_again[1]
+              & days_between <= input$days_between_again[2]
+            )
+          
         } else print(paste0("Error.  Unrecognized input."))
         
         p <-
@@ -1072,6 +1261,100 @@ shinyServer(
                  margin = list(b = 100))
         
       }else print(paste0("Error.  Unrecognized input."))
+      
+    })
+    
+    output$elig_serv_dt <- renderDataTable({
+      
+      elig_df() %>%
+        mutate(
+          met = case_when(
+            elig_status == "Eligible, did not receive services" ~ F,
+            elig_status == "Not eligible, received services" ~ F,
+            elig_status == "Not eligible, did not receive services" ~ T,
+            elig_status == "Eligible, received services" ~ T
+          )
+        ) %>%
+        group_by(cmh, met) %>%
+        summarize(
+          n = sum(n),
+          all = max(all),
+          pct = sum(pct)
+        ) %>%
+        ungroup() %>%
+        filter(met == T) %>%
+        select(-met) %>%
+        arrange(pct) %>%
+        datatable(
+          caption = "Percent of youth whose services meet SED CAFAS criteria",
+          rownames = F,
+          colnames = c('CMH',
+                       '# meeting criteria',
+                       '# assessed',
+                       'Percentage'),
+          extensions = c('Responsive','Buttons'),
+          options = list(
+            pageLength = 5,
+            lengthMenu = c(5, 10, 15),
+            buttons = c('colvis')
+          )
+        ) %>%
+        formatStyle(
+          'pct',
+          background = styleColorBar(c(0,100), "#83AF9B"),
+          backgroundSize = '100% 90%',
+          backgroundRepeat = 'no-repeat',
+          backgroundPosition = 'center'
+        )
+      
+    })
+    
+    output$elig_serv_bar <- renderPlotly({
+      
+      elig_df() %>%
+        plot_ly(
+          x = ~cmh, 
+          y = ~pct, 
+          color = ~elig_status,
+          hoverinfo = 'text',
+          text = ~paste0(n, " out of ", all," youth (",pct,"%)<br>",
+                         "assessed at ",cmh,"<br>",
+                         "were ",elig_status,".")
+        ) %>% 
+        add_bars(colors = c("#FE4365","#C8C8A9","#83AF9B")) %>% # "#FC9D9A",
+        layout(
+          #title = paste0("Services Provided following SED Eligibility Assessment"),
+          legend = list(
+            orientation = 'h',
+            y = 1.5,
+            xanchor = "center",
+            x = 0.5
+          ),
+          margin = list(b = 100,t = 50),
+          barmode = 'stack',
+          xaxis = list(title = "",tickangle = 45),
+          yaxis = list(title = "% of assessments")
+        )
+      
+    })
+    
+    output$elig_serv_scatter <- renderPlotly({
+      
+      if (input$agency == "All") {
+        fas_filt <- cafasInput()
+      } else if ( input$agency %in% levels(unique(scrub_fas$cmh)) ) {
+        fas_filt <- cafasInput() %>% filter(cmh %in% input$agency)
+      } else print(paste0("Error.  Unrecognized input."))
+      
+      fas_filt %>%
+        plot_ly(
+          x = ~score_total, 
+          y = ~units, 
+          #type = "histogram2dcontour"
+          color = ~elig_status
+        ) %>% 
+        add_markers(colors = c("#FE4365","#C8C8A9","#83AF9B"))
+      
     })
     
     output$eligible_bar <- renderPlotly({
@@ -1082,6 +1365,14 @@ shinyServer(
       } else if ( input$agency %in% levels(unique(scrub_fas$cmh)) ) {
         fas_filt <- cafasInput() %>% filter(cmh %in% input$agency)
       } else print(paste0("Error.  Unrecognized input."))
+      
+      # Exclude potential data issues
+      if (input$rm_data_issues3 == T) {
+        fas_filt <-
+          fas_filt %>%
+          filter(no_svcs_ever == F & no_xwalk == F) %>%
+          droplevels()
+      } else fas_filt <- fas_filt
       
       if (input$radio_elig_recent == "Only most recent") {
         recency <- c(TRUE) 
@@ -1176,6 +1467,14 @@ shinyServer(
       } else if ( input$agency %in% levels(unique(scrub_fas$cmh)) ) {
         fas_filt <- cafasInput() %>% filter(cmh %in% input$agency)
       } else print(paste0("Error.  Unrecognized input."))
+      
+      # Exclude potential data issues
+      if (input$rm_data_issues3 == T) {
+        fas_filt <-
+          fas_filt %>%
+          filter(no_svcs_ever == F & no_xwalk == F) %>%
+          droplevels()
+      } else fas_filt <- fas_filt
       
       df <-
         fas_filt %>% 
@@ -1349,6 +1648,102 @@ shinyServer(
       
       
       })
+    
+    output$regress_bar <- renderPlotly({
+      
+      unit_chg <-
+        # label the type of unit
+        if (input$response == "Length of episode") {
+          "Days"
+        } else if (input$response == "Estimated cost of episode") {
+          "Dollars ($)"
+        } else if (input$response == "Estimated monthly cost") {
+          "Dollars ($)"
+        } else if (input$response == "Estimated hours of service") {
+          "Hours"
+        } else if (input$response == "Estimated hours of service per month") {
+          "Hours"
+        } else print(paste0("Error.  Unrecognized input."))
+      
+      notetxt <- 
+        paste0("On average, how many ", tolower(unit_chg), " does the ", 
+               "<br>", tolower(input$response), 
+               "<br>increase for every 10 point increase", 
+               "<br>in ", input$predictor, "?")  
+      
+      # Vary handling of model output depending on 
+      # whether one or all agencies are selected
+      
+      if (input$agency == "All") {
+        
+        coeff <- 
+          model_op_rev() %>%
+          tidy(fit) %>%
+          group_by(cmh,term) %>%
+          mutate_all(funs(round(.,digits = 3))) %>%
+          select(estimate) %>%
+          group_by(cmh) %>%
+          spread(key = term, value = estimate) 
+        
+        names(coeff)[2:3] <- c("intercept","slope")
+        
+        df_in <-
+          model_op_rev() %>% 
+          glance(fit) %>%
+          group_by(cmh) %>%
+          mutate_all(funs(round(.,digits = 3))) %>%
+          select(r.squared, p.value) %>%
+          left_join(coeff, by = "cmh") %>%
+          select(cmh,slope,intercept,r.squared,p.value) %>%
+          mutate(slope10 = slope * 10) %>%
+          arrange(desc(slope)) %>%
+#          filter(p.value <= 0.05) %>%
+          ungroup()
+          
+      } else if (input$agency %in% levels(unique(scrub_fas$cmh))) {
+        
+        df_in <-
+          model_op_rev() %>%
+          tidy() %>%
+          mutate(term = gsub("cmh.","",term),
+                 term = gsub("_pred","",term),
+                 term = gsub("predictor",input$agency,term)) %>%
+          filter(term != "(Intercept)") %>%
+          group_by(term) %>%
+          mutate_all(funs(round(.,digits = 3))) %>%
+          select(term, estimate, p.value) %>%
+          mutate(slope10 = estimate * 10) %>%
+#          filter(p.value <= 0.05) %>%
+          rename(cmh = term,
+                 slope = estimate) %>%
+          ungroup()
+        
+      } else print(paste0("Error.  Unrecognized input."))
+      
+      df_in %>% 
+        mutate(cmh = fct_reorder(cmh, x = slope10, fun = max, .desc = T)) %>%
+        plot_ly(x = ~cmh, y = ~slope10
+                # , color = p.value >= 0.05, colors=c("#BBB6C1", "#FFB6C1")
+                ) %>% 
+        # add_bars(color = I("#FFB6C1"),
+        add_bars(hoverinfo = "text",
+                 text = ~paste("At ", cmh, " each change of 10 pts ",
+                               "<br>in ", input$predictor,
+                               "<br>corresponds to an average change of ",
+                               "<br>",slope10," ",unit_chg, " in ",
+                               "<br>",tolower(input$response),".",
+                               "<br>p-value =", p.value)) %>%
+        layout(title = "Change in Service Use based on Need",
+               xaxis = list(title = "",
+                            showticklabels = T),
+               yaxis = list(title = unit_chg),
+               annotations = list(x = 1, xanchor = "right", xref = "paper",
+                                  y = 1, yanchor = "top", yref = "paper",
+                                  showarrow = F, align = "left",
+                                  text = notetxt),
+               margin = list(b = 60)) 
+      
+    })
     
     output$regress_dt <- renderDataTable({
       
@@ -1643,7 +2038,7 @@ shinyServer(
                         hoverinfo = "text") %>%
             add_lines(y = ~.fitted,
                       color = ~cmh, 
-                      text = ~paste("When the ", tolower(input$predictor),
+                      text = ~paste("When the ", input$predictor,
                                     " is ", predictor,
                                     "<br>the model predicts a ",
                                     "<br>", input$response, " of ", 
